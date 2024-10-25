@@ -13,13 +13,6 @@ namespace fs = std::filesystem;
 
 namespace video_display
 {
-    // temp
-    constexpr auto VIDEO_PATH = "/media/adam/Samsung 1TB/Videos/2024_06_03_Peter_Pan.mp4";
-}
-
-
-namespace video_display
-{
     namespace img = image;
     namespace vid = video;
 
@@ -56,35 +49,7 @@ namespace video_display
         fs::path video_filepath;
 
         ImGui::FileBrowser fb_video;
-
     };
-
-
-    inline void destroy(DisplayState& state)
-    {
-        vid::destroy_frame(state.display_frame);
-        vid::close_video(state.video);
-    }
-
-
-    inline bool init(DisplayState& state)
-    {
-        u32 w = 640;
-        u32 h = 360;
-        
-        if (!vid::create_frame(state.display_frame, w, h))
-        {
-            return false;
-        }
-
-        auto& fb = state.fb_video;
-        fb.SetTitle("Video Select");
-        fb.SetTypeFilters({".mp4"});
-        fb.SetDirectory(fs::path("/"));
-
-
-        return true;
-    }    
 }
 
 
@@ -100,9 +65,9 @@ namespace internal
 
     static void reset_video(DisplayState& state)
     {
-        vid::close_video(state.video);
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
+        vid::close_video(state.video);        
     }
     
     
@@ -235,7 +200,6 @@ namespace video_display
         if (ImGui::Button("Open"))
         {
             state.fb_video.Open();
-            //state.video_filepath = fs::path(VIDEO_PATH);
         }
         if (open_disabled) { ImGui::EndDisabled(); }
 
@@ -252,7 +216,12 @@ namespace video_display
 
         if (play_pause_disabled) { ImGui::BeginDisabled(); }
 
-        if (state.play_status == VPS::Pause)
+        if (state.load_status == VLS::InProgress)
+        {
+            ImGui::SameLine();
+            ImGui::Text("Loading...");
+        }
+        else if (state.play_status == VPS::Pause)
         {
             ImGui::SameLine();
             if (ImGui::Button("Play"))
@@ -282,7 +251,32 @@ namespace video_display
             state.video_filepath = state.fb_video.GetSelected();
             state.fb_video.ClearSelected();
         }
-
-        
     }
+
+
+    inline void destroy(DisplayState& state)
+    {
+        internal::pause_video(state);
+        vid::destroy_frame(state.display_frame);
+        vid::close_video(state.video);
+    }
+
+
+    inline bool init(DisplayState& state)
+    {
+        u32 w = 640;
+        u32 h = 360;
+        
+        if (!vid::create_frame(state.display_frame, w, h))
+        {
+            return false;
+        }
+
+        auto& fb = state.fb_video;
+        fb.SetTitle("Video Select");
+        fb.SetTypeFilters({".mp4"});
+        fb.SetDirectory(fs::path("/"));
+
+        return true;
+    }    
 }

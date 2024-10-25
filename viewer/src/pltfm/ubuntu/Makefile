@@ -52,6 +52,7 @@ numeric_h := $(util)/numeric.hpp
 numeric_h += $(types_h)
 
 stack_buffer_h := $(util)/stack_buffer.hpp
+stopwatch_h    := $(util)/stopwatch.hpp
 
 #************
 
@@ -124,6 +125,7 @@ video_c += $(video_h)
 video_display := $(src)/video_display
 
 video_display_h := $(video_display)/video_display.hpp
+video_display_h += $(stopwatch_h)
 
 #***********
 
