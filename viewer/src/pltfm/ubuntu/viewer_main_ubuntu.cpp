@@ -120,6 +120,10 @@ static void render_imgui_frame()
 
 static bool main_init()
 {
+    ui_state.window_title = "Video Viewer";
+    ui_state.window_width = 500;
+    ui_state.window_height = 500;
+
     if (!ui::init(ui_state))
     {
         return false;
