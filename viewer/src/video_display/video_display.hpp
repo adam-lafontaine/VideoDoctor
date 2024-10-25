@@ -94,6 +94,18 @@ namespace video_display
 {
 namespace internal
 {
+    using VLS = VideoLoadStatus;
+    using VPS = VideoPlayStatus;
+
+
+    static void reset_video(DisplayState& state)
+    {
+        vid::close_video(state.video);
+        state.load_status = VLS::NotLoaded;
+        state.play_status = VPS::NotLoaded;
+    }
+    
+    
     static bool load_video(DisplayState& state)
     {
         auto path = state.video_filepath;
@@ -102,7 +114,7 @@ namespace internal
             return false;
         }
 
-        vid::close_video(state.video);
+        reset_video(state);
 
         return vid::open_video(state.video, state.video_filepath.string().c_str());
     }
@@ -110,9 +122,6 @@ namespace internal
 
     static void load_video_async(DisplayState& state)
     {
-        using VLS = VideoLoadStatus;
-        using VPS = VideoPlayStatus;        
-
         auto const load = [&]()
         {
             state.load_status = VLS::InProgress;
@@ -150,9 +159,6 @@ namespace internal
 
     static void play_video(DisplayState& state)
     {
-        using VLS = VideoLoadStatus;
-        using VPS = VideoPlayStatus;
-
         constexpr f64 NANO = 1'000'000'000;
 
         auto target_ns = NANO / state.video.fps;
@@ -171,9 +177,7 @@ namespace internal
 
         if (!not_eof)
         {
-            vid::close_video(state.video);
-            state.load_status = VLS::NotLoaded;
-            state.play_status = VPS::NotLoaded;
+            reset_video(state);
         }
     }
 
@@ -273,7 +277,8 @@ namespace video_display
         state.fb_video.Display();
         if (state.fb_video.HasSelected())
         {
-            vid::close_video(state.video);
+            internal::reset_video(state);
+
             state.video_filepath = state.fb_video.GetSelected();
             state.fb_video.ClearSelected();
         }
