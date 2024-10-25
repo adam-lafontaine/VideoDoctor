@@ -26,6 +26,8 @@ namespace video
 
         u32 frame_width = 0;
         u32 frame_height = 0;
+
+        f64 fps = 0.0;
     };
 
 
@@ -36,4 +38,6 @@ namespace video
     bool open_video(Video& video, cstr filepath);
 
     void close_video(Video& video);
+
+    bool next_frame(Video& video, FrameRGBA& frame);
 }

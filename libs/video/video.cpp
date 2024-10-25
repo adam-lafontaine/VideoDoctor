@@ -43,6 +43,8 @@ namespace video
         AVFrame* frame;
         AVPacket* packet;
 
+        int video_stream_index = -1;
+
     };
 
 
@@ -147,6 +149,8 @@ namespace video
             return false;
         }
 
+        ctx.video_stream_index = video_stream_index;
+
         AVCodecParameters* cp = ctx.format_ctx->streams[video_stream_index]->codecpar;
         AVCodec* codec = avcodec_find_decoder(cp->codec_id);
         if (!codec)
@@ -196,6 +200,9 @@ namespace video
         video.frame_width = (u32)ctx.frame->width;
         video.frame_height = (u32)ctx.frame->height;
 
+        auto stream = ctx.format_ctx->streams[video_stream_index];
+        video.fps = av_q2d(stream->avg_frame_rate);
+
         return true;
     }
 
@@ -217,5 +224,38 @@ namespace video
         mem::free(&ctx);
 
         video.handel = 0;
+    }
+
+
+    bool next_frame(Video& video, FrameRGBA& frame)
+    {
+        auto& ctx = get_context(video);
+        auto av_frame = (AVFrame*)frame.handel;
+
+        if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
+        {
+            return false;
+        }
+
+        if (ctx.packet->stream_index != ctx.video_stream_index)
+        {
+            return false;
+        }
+
+        if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
+        {
+            return false;
+        }
+
+        if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
+        {
+            return false;
+        }
+
+        convert_frame(ctx.frame, av_frame);
+
+        av_packet_unref(ctx.packet);
+
+        return true;
     }
 }

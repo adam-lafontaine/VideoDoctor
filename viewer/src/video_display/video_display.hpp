@@ -2,6 +2,7 @@
 
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/video/video.hpp"
+#include "../../../libs/util/stopwatch.hpp"
 
 #include <thread>
 #include <filesystem>
@@ -97,16 +98,89 @@ namespace internal
     static void load_video_async(DisplayState& state)
     {
         using VLS = VideoLoadStatus;
+        using VPS = VideoPlayStatus;
 
         auto const load = [&]()
         {
             state.load_status = VLS::InProgress;
             auto ok = load_video(state);
-            state.load_status = ok ? VLS::Loaded : VLS::Fail;
+            if (ok)
+            {
+                state.load_status = VLS::Loaded;
+                state.play_status = VPS::Pause;
+            }
+            else
+            {
+                state.load_status = VLS::NotLoaded;
+                state.play_status = VPS::NotLoaded;
+            }            
         };
 
         std::thread th(load);
         th.detach();
+    }
+
+
+    static void cap_framerate(Stopwatch& sw, f64 target_ns)
+    {
+        constexpr f64 fudge = 0.9;
+
+        auto sleep_ns = target_ns - sw.get_time_nano();
+        if (sleep_ns > 0)
+        {
+            std::this_thread::sleep_for(std::chrono::nanoseconds((i64)(sleep_ns * fudge)));
+        }
+
+        sw.start();
+    }
+
+
+    static void play_video(DisplayState& state)
+    {
+        using VPS = VideoPlayStatus;
+
+        constexpr f64 NANO = 1'000'000'000;
+
+        auto target_s = 1.0 / state.video.fps;
+        auto target_ns = target_s * NANO;
+
+        state.play_status = VPS::Play;
+
+        Stopwatch sw;
+        sw.start();
+        while (state.play_status == VPS::Play)
+        {
+            vid::next_frame(state.video, state.display_frame);
+
+            //cap_framerate(sw, target_ns);
+        }
+    }
+
+
+    static void play_video_async(DisplayState& state)
+    {
+        using VPS = VideoPlayStatus;
+
+        if (state.play_status != VPS::Pause)
+        {
+            return;
+        }
+
+        auto const play = [&]()
+        {
+            play_video(state);
+        };
+
+        std::thread th(play);
+        th.detach();
+    }
+
+
+    static void pause_video(DisplayState& state)
+    {
+        using VPS = VideoPlayStatus;
+
+        state.play_status = VPS::Pause;
     }
 }
 }
@@ -117,12 +191,14 @@ namespace video_display
     void video_frame_window(DisplayState& state)
     {
         using VLS = VideoLoadStatus;
+        using VPS = VideoPlayStatus;
 
         auto view = state.display_frame.view;
         auto dims = ImVec2(view.width, view.height);
         auto texture = state.display_frame_texture;
 
-        auto btn_disabled = state.load_status != VLS::NotLoaded;
+        auto load_disabled = state.load_status != VLS::NotLoaded;
+        auto play_pause_disabled = state.load_status != VLS::Loaded;
 
         auto red = img::to_pixel(100, 0, 0);
         auto green = img::to_pixel(0, 100, 0);
@@ -132,24 +208,40 @@ namespace video_display
 
         auto color = s == VLS::NotLoaded ? blue : (s == VLS::Loaded ? green : red);
 
-        img::fill(view, color);
+        //img::fill(view, color);
 
 
         ImGui::Begin("Video");
 
         ImGui::Image(texture, dims);
 
-        if (btn_disabled) { ImGui::BeginDisabled(); }
-
+        if (load_disabled) { ImGui::BeginDisabled(); }
         if (ImGui::Button("Load"))
         {
             internal::load_video_async(state);
         }
-
-        if (btn_disabled) { ImGui::EndDisabled(); }
+        if (load_disabled) { ImGui::EndDisabled(); }
 
         ImGui::SameLine();
-        ImGui::Text("%d", (int)s);
+
+        if (play_pause_disabled) { ImGui::BeginDisabled(); }
+
+        if (state.play_status == VPS::Pause)
+        {
+            if (ImGui::Button("Play"))
+            {
+                internal::play_video_async(state);
+            }
+        }
+        else if (state.play_status == VPS::Play)
+        {
+            if (ImGui::Button("Pause"))
+            {
+                internal::pause_video;
+            }
+        }
+        if (play_pause_disabled) { ImGui::EndDisabled(); }
+        
        
 
         ImGui::End();
