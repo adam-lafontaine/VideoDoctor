@@ -13,7 +13,7 @@ OPENGL := -lGL -ldl
 FFMPEG := -lavformat -lavcodec -lavutil -lswscale 
 #OPENCV := `pkg-config --cflags --libs opencv4`
 
-ALL_LFLAGS := $(SDL2) $(OPENGL) $(FFMPEG)
+ALL_LFLAGS := $(SDL2) $(OPENGL) $(FFMPEG) -lpthread
 
 
 root       := ../../../..
@@ -119,6 +119,15 @@ video_c += $(video_h)
 #*************
 
 
+#*** video_display ***
+
+video_display := $(src)/video_display
+
+video_display_h := $(video_display)/video_display.hpp
+
+#***********
+
+
 #*** main cpp ***
 
 main_c := $(pltfm)/viewer_main_ubuntu.cpp
@@ -126,6 +135,7 @@ main_o := $(build)/main.o
 obj    := $(main_o)
 
 main_dep := $(imgui_include_h)
+main_dep+= $(video_display_h)
 
 # main_o.cpp
 main_dep += $(pltfm)/main_o.cpp

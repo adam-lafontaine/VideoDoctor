@@ -143,11 +143,11 @@ static bool main_init()
 
     textures = ogl::create_textures<N_TEXTURES>();
 
-    auto& vd_src = vd_state.video_frame.view;
+    auto& vd_src = vd_state.display_frame.view;
     auto& vd_dst = textures.get_ogl_texture(video_display_texture_id);
     ogl::init_texture(vd_src.matrix_data_, (int)vd_src.width, (int)vd_src.height, vd_dst);
 
-    vd_state.video_frame_texture = textures.get_imgui_texture(video_display_texture_id);
+    vd_state.display_frame_texture = textures.get_imgui_texture(video_display_texture_id);
 
     return true;
 }
