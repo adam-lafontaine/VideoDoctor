@@ -1,3 +1,5 @@
+#include "video.hpp"
+
 // sudo apt-get install ffmpeg libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
 extern "C" {
 #include <libavformat/avformat.h>
@@ -5,8 +7,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavutil/imgutils.h>
 }
-
-#include "video.hpp"
 
 
 namespace video
