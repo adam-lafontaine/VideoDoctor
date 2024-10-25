@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../../libs/imgui/imgui.h"
+#include "../../../libs/imgui/imfilebrowser.hpp"
 #include "../../../libs/video/video.hpp"
 #include "../../../libs/util/stopwatch.hpp"
 
@@ -52,6 +53,10 @@ namespace video_display
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
 
+        fs::path video_filepath;
+
+        ImGui::FileBrowser fb_video;
+
     };
 
 
@@ -72,6 +77,12 @@ namespace video_display
             return false;
         }
 
+        auto& fb = state.fb_video;
+        fb.SetTitle("Video Select");
+        fb.SetTypeFilters({".mp4"});
+        fb.SetDirectory(fs::path("/"));
+
+
         return true;
     }    
 }
@@ -85,20 +96,22 @@ namespace internal
 {
     static bool load_video(DisplayState& state)
     {
-        auto path = fs::path(VIDEO_PATH);
+        auto path = state.video_filepath;
         if (!fs::exists(path) || !fs::is_regular_file(path))
         {
             return false;
         }
 
-        return vid::open_video(state.video, VIDEO_PATH);
+        vid::close_video(state.video);
+
+        return vid::open_video(state.video, state.video_filepath.string().c_str());
     }
 
 
     static void load_video_async(DisplayState& state)
     {
         using VLS = VideoLoadStatus;
-        using VPS = VideoPlayStatus;
+        using VPS = VideoPlayStatus;        
 
         auto const load = [&]()
         {
@@ -153,7 +166,7 @@ namespace internal
         {
             not_eof = vid::next_frame(state.video, state.display_frame);
 
-            //cap_framerate(sw, target_ns);
+            cap_framerate(sw, target_ns);
         }
 
         if (!not_eof)
@@ -205,37 +218,39 @@ namespace video_display
         auto dims = ImVec2(view.width, view.height);
         auto texture = state.display_frame_texture;
 
+        auto open_disabled = state.play_status == VPS::Play;
         auto load_disabled = state.load_status != VLS::NotLoaded;
         auto play_pause_disabled = state.load_status != VLS::Loaded;
-
-        auto red = img::to_pixel(100, 0, 0);
-        auto green = img::to_pixel(0, 100, 0);
-        auto blue = img::to_pixel(0, 0, 100);
-
-        auto s = state.load_status;        
-
-        auto color = s == VLS::NotLoaded ? blue : (s == VLS::Loaded ? green : red);
-
-        //img::fill(view, color);
-
 
         ImGui::Begin("Video");
 
         ImGui::Image(texture, dims);
 
+        if (open_disabled) { ImGui::BeginDisabled(); }
+
+        if (ImGui::Button("Open"))
+        {
+            state.fb_video.Open();
+            //state.video_filepath = fs::path(VIDEO_PATH);
+        }
+        if (open_disabled) { ImGui::EndDisabled(); }
+
+        ImGui::SameLine();
+        ImGui::Text("path: %s", state.video_filepath.string().c_str());
+
         if (load_disabled) { ImGui::BeginDisabled(); }
+        
         if (ImGui::Button("Load"))
         {
             internal::load_video_async(state);
         }
         if (load_disabled) { ImGui::EndDisabled(); }
 
-        ImGui::SameLine();
-
         if (play_pause_disabled) { ImGui::BeginDisabled(); }
 
         if (state.play_status == VPS::Pause)
         {
+            ImGui::SameLine();
             if (ImGui::Button("Play"))
             {
                 internal::play_video_async(state);
@@ -243,6 +258,7 @@ namespace video_display
         }
         else if (state.play_status == VPS::Play)
         {
+            ImGui::SameLine();
             if (ImGui::Button("Pause"))
             {
                 internal::pause_video(state);
@@ -250,8 +266,18 @@ namespace video_display
         }
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
-        ImGui::Text("%3.1f fps", state.video.fps);       
-
+        ImGui::Text("%3.1f fps", state.video.fps);
+       
         ImGui::End();
+        
+        state.fb_video.Display();
+        if (state.fb_video.HasSelected())
+        {
+            vid::close_video(state.video);
+            state.video_filepath = state.fb_video.GetSelected();
+            state.fb_video.ClearSelected();
+        }
+
+        
     }
 }
