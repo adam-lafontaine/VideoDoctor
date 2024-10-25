@@ -9,6 +9,8 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 
+#include <cassert>
+
 
 namespace video
 {
@@ -232,28 +234,40 @@ namespace video
         auto& ctx = get_context(video);
         auto av_frame = (AVFrame*)frame.handel;
 
-        if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
+        for (;;)
         {
-            return false;
-        }
+            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
+            {
+                //assert("*** av_read_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
 
-        if (ctx.packet->stream_index != ctx.video_stream_index)
-        {
-            return false;
-        }
+            if (ctx.packet->stream_index != ctx.video_stream_index)
+            {
+                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
 
-        if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
-        {
-            return false;
-        }
+            if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
+            {
+                assert("*** avcodec_send_packet ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
 
-        if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
-        {
-            return false;
+            if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
+            {
+                //assert("*** avcodec_receive_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            break;
         }
 
         convert_frame(ctx.frame, av_frame);
-
         av_packet_unref(ctx.packet);
 
         return true;

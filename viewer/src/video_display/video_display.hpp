@@ -137,22 +137,30 @@ namespace internal
 
     static void play_video(DisplayState& state)
     {
+        using VLS = VideoLoadStatus;
         using VPS = VideoPlayStatus;
 
         constexpr f64 NANO = 1'000'000'000;
 
-        auto target_s = 1.0 / state.video.fps;
-        auto target_ns = target_s * NANO;
+        auto target_ns = NANO / state.video.fps;
 
         state.play_status = VPS::Play;
+        auto not_eof = true;
 
         Stopwatch sw;
         sw.start();
-        while (state.play_status == VPS::Play)
+        while (state.play_status == VPS::Play && not_eof)
         {
-            vid::next_frame(state.video, state.display_frame);
+            not_eof = vid::next_frame(state.video, state.display_frame);
 
             //cap_framerate(sw, target_ns);
+        }
+
+        if (!not_eof)
+        {
+            vid::close_video(state.video);
+            state.load_status = VLS::NotLoaded;
+            state.play_status = VPS::NotLoaded;
         }
     }
 
@@ -237,12 +245,12 @@ namespace video_display
         {
             if (ImGui::Button("Pause"))
             {
-                internal::pause_video;
+                internal::pause_video(state);
             }
         }
         if (play_pause_disabled) { ImGui::EndDisabled(); }
-        
-       
+
+        ImGui::Text("%3.1f fps", state.video.fps);       
 
         ImGui::End();
     }
