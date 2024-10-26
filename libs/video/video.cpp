@@ -14,29 +14,6 @@ extern "C" {
 
 namespace video
 {
-
-    static void convert_frame(AVFrame* src, AVFrame* dst)
-    {
-        auto sws_ctx = sws_getContext(
-            src->width, src->height, 
-            (AVPixelFormat)src->format,
-
-            dst->width, dst->height, 
-            (AVPixelFormat)dst->format,
-            SWS_BILINEAR, nullptr, nullptr, nullptr);
-        
-        sws_scale(
-            sws_ctx,
-            src->data, src->linesize, 0, src->height,
-            dst->data, dst->linesize);
-
-        sws_freeContext(sws_ctx);
-    }
-}
-
-
-namespace video
-{
     class VideoContext
     {
     public:
@@ -47,13 +24,101 @@ namespace video
         AVPacket* packet;
 
         int video_stream_index = -1;
-
     };
 
 
     static VideoContext& get_context(Video video)
     {
         return *(VideoContext*)(video.video_handle);
+    }
+}
+
+
+namespace video
+{
+    static SwsContext* create_sws(AVFrame* src, AVFrame* dst)
+    {
+        return sws_getContext(
+            src->width, src->height, 
+            (AVPixelFormat)src->format,
+
+            dst->width, dst->height, 
+            (AVPixelFormat)dst->format,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+    }
+
+
+    static void convert_frame(AVFrame* src, AVFrame* dst)
+    {
+        auto sws_ctx = create_sws(src, dst);
+        
+        sws_scale(
+            sws_ctx,
+            src->data, src->linesize, 0, src->height,
+            dst->data, dst->linesize);
+
+        sws_freeContext(sws_ctx);
+    }
+
+
+    static bool read_next_frame(VideoContext const& ctx)
+    {
+        for (;;)
+        {
+            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
+            {
+                //assert("*** av_read_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
+
+            if (ctx.packet->stream_index != ctx.video_stream_index)
+            {
+                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
+            {
+                assert("*** avcodec_send_packet ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
+
+            if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
+            {
+                //assert("*** avcodec_receive_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            break;
+        }
+
+        return true;
+    }
+
+
+    static void crop_frame(AVFrame* src, AVFrame* dst, int dst_width, int dst_height, int crop_x, int crop_y) 
+    {
+        auto sws_ctx = create_sws(src, dst);
+
+        uint8_t* srcSlice[AV_NUM_DATA_POINTERS];
+        int srcStride[AV_NUM_DATA_POINTERS];
+        
+        for (int i = 0; i < AV_NUM_DATA_POINTERS; i++) 
+        {
+            srcSlice[i] = src->data[i] + crop_y * src->linesize[i] + crop_x * (i == 0 ? 1 : 0);
+            srcStride[i] = src->linesize[i];
+        }
+        
+        sws_scale(
+            sws_ctx,
+            srcSlice, srcStride, 0, dst_height,
+            dst->data, dst->linesize);
+
+        sws_freeContext(sws_ctx);
     }
 }
 
@@ -214,7 +279,12 @@ namespace video
         auto& ctx = get_context(video);
 
         av_frame_free(&ctx.frame);
-        av_packet_free(&ctx.packet);
+
+        if (ctx.packet)
+        {
+            av_packet_free(&ctx.packet);
+        }
+        
         avcodec_close(ctx.codec_ctx);
         avformat_close_input(&ctx.format_ctx);
 
@@ -228,37 +298,9 @@ namespace video
     {
         auto& ctx = get_context(video);        
 
-        for (;;)
+        if (!read_next_frame(ctx))
         {
-            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
-            {
-                //assert("*** av_read_frame ***" && false);
-                av_packet_unref(ctx.packet);
-                return false;
-            }
-
-            if (ctx.packet->stream_index != ctx.video_stream_index)
-            {
-                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
-                av_packet_unref(ctx.packet);
-                continue;
-            }
-
-            if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
-            {
-                assert("*** avcodec_send_packet ***" && false);
-                av_packet_unref(ctx.packet);
-                return false;
-            }
-
-            if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
-            {
-                //assert("*** avcodec_receive_frame ***" && false);
-                av_packet_unref(ctx.packet);
-                continue;
-            }
-
-            break;
+            return false;
         }
 
         auto av_frame = (AVFrame*)frame.frame_handle;
@@ -274,37 +316,9 @@ namespace video
     {
         auto& ctx = get_context(video);        
 
-        for (;;)
+        if (!read_next_frame(ctx))
         {
-            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
-            {
-                //assert("*** av_read_frame ***" && false);
-                av_packet_unref(ctx.packet);
-                return false;
-            }
-
-            if (ctx.packet->stream_index != ctx.video_stream_index)
-            {
-                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
-                av_packet_unref(ctx.packet);
-                continue;
-            }
-
-            if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
-            {
-                assert("*** avcodec_send_packet ***" && false);
-                av_packet_unref(ctx.packet);
-                return false;
-            }
-
-            if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
-            {
-                //assert("*** avcodec_receive_frame ***" && false);
-                av_packet_unref(ctx.packet);
-                continue;
-            }
-
-            break;
+            return false;
         }
 
         for (auto& frame : frames)
@@ -403,7 +417,12 @@ namespace crop
             return false;
         }
 
-        avformat_write_header(ctx.format_ctx, nullptr);
+        if (avformat_write_header(ctx.format_ctx, nullptr) < 0)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            return false;
+        }
 
         ctx.frame = av_frame_alloc();
         if (!ctx.frame)
@@ -413,14 +432,31 @@ namespace crop
             return false;
         }
 
-        ctx.packet = av_packet_alloc();
+        int w = (int)width;
+        int h = (int)height;
+        auto fmt = (AVPixelFormat)src_ctx.frame->format;
+        int align = 32;
+
+        ctx.frame->format = fmt;
+        ctx.frame->width = w;
+        ctx.frame->height = h;
+        if (av_image_alloc(ctx.frame->data, ctx.frame->linesize, w, h, fmt, align) < 0)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            return false;
+        }
+
+        ctx.packet = 0;
+
+        /*ctx.packet = av_packet_alloc();
         if (!ctx.packet)
         {
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             av_frame_free(&ctx.frame);
             return false;
-        }
+        }*/
 
         dst.frame_width = width;
         dst.frame_height = height;
@@ -431,7 +467,47 @@ namespace crop
 
     bool next_frame(Video const& src, Video& dst, Point2Du32 crop_xy)
     {
+        auto& src_ctx = get_context(src);        
 
+        if (!read_next_frame(src_ctx))
+        {
+            // eof
+            
+            return false;
+        }
+
+        auto& dst_ctx = get_context(dst);
+
+        auto w = (int)dst.frame_width;
+        auto h = (int)dst.frame_height;
+        auto x = (int)crop_xy.x;
+        auto y = (int)crop_xy.y;
+        crop_frame(src_ctx.frame, dst_ctx.frame, w, h, x, y);
+        
+        AVPacket out_packet;
+        av_init_packet(&out_packet);
+        out_packet.data = nullptr;
+        out_packet.size = 0;
+
+        avcodec_send_frame(dst_ctx.codec_ctx, dst_ctx.frame);
+        avcodec_receive_packet(dst_ctx.codec_ctx, &out_packet);
+        av_write_frame(dst_ctx.format_ctx, &out_packet);
+
+        av_packet_unref(&out_packet);
+        av_packet_unref(src_ctx.packet);
+
+        return true;
+    }
+
+
+    void save_and_close_video(Video& video)
+    {
+        auto& ctx = get_context(video);
+
+        av_write_trailer(ctx.format_ctx);
+        avio_close(ctx.format_ctx->pb);
+        
+        close_video(video);
     }
 }
 }
