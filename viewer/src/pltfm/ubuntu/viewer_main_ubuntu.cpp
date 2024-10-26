@@ -1,6 +1,7 @@
 #include "imgui_include.hpp"
-#include "../../../../libs/util/types.hpp"
+#include "../../video_display/video_display.hpp"
 
+namespace vd = video_display;
 
 
 enum class RunState : int
@@ -16,8 +17,12 @@ namespace
     ui::UIState ui_state{};
     RunState run_state = RunState::Begin;
 
+    vd::DisplayState vd_state;
+
     constexpr u32 N_TEXTURES = 1;
     ogl::TextureList<N_TEXTURES> textures;
+
+    constexpr ogl::TextureId video_display_texture_id = { 0 };
 }
 
 
@@ -102,7 +107,7 @@ static void process_user_input()
 
 static void render_textures()
 {
-    // TODO
+    ogl::render_texture(textures.get_ogl_texture(video_display_texture_id));
 }
 
 
@@ -113,6 +118,8 @@ static void render_imgui_frame()
 #ifdef SHOW_IMGUI_DEMO
     ui::show_imgui_demo(ui_state);
 #endif
+
+    vd::video_frame_window(vd_state);
 
     ui::render(ui_state);
 }
@@ -129,6 +136,19 @@ static bool main_init()
         return false;
     }
 
+    if (!vd::init(vd_state))
+    {
+        return false;
+    }
+
+    textures = ogl::create_textures<N_TEXTURES>();
+
+    auto& vd_src = vd_state.display_frame.view;
+    auto& vd_dst = textures.get_ogl_texture(video_display_texture_id);
+    ogl::init_texture(vd_src.matrix_data_, (int)vd_src.width, (int)vd_src.height, vd_dst);
+
+    vd_state.display_frame_texture = textures.get_imgui_texture(video_display_texture_id);
+
     return true;
 }
 
@@ -136,6 +156,7 @@ static bool main_init()
 static void main_close()
 {
     ui::close(ui_state);
+    vd::destroy(vd_state);
 }
 
 
@@ -167,3 +188,5 @@ int main()
 
     return 0;
 }
+
+#include "main_o.cpp"

@@ -3,8 +3,6 @@
 #include "imgui_options.hpp"
 
 // v1.91.5
-#include "../../../../libs/imgui/imgui.h"
-
 #include "../../../../libs/imgui/backends/imgui_impl_sdl2.h"
 #include "../../../../libs/imgui/backends/imgui_impl_opengl3.h"
 
