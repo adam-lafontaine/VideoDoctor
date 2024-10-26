@@ -18,7 +18,7 @@ ALL_LFLAGS := $(SDL2) $(OPENGL) $(FFMPEG) -lpthread
 
 root       := ../../../..
 
-app   := $(root)/viewer
+app   := $(root)/filter
 build := $(app)/build/ubuntu
 src   := $(app)/src
 
@@ -26,7 +26,7 @@ pltfm := $(src)/pltfm/ubuntu
 
 libs := $(root)/libs
 
-exe := viewer
+exe := video_filter
 
 program_exe := $(build)/$(exe)
 
@@ -125,6 +125,7 @@ video_c += $(video_h)
 video_display := $(src)/video_display
 
 video_display_h := $(video_display)/video_display.hpp
+video_display_h += $(video_h)
 video_display_h += $(stopwatch_h)
 
 #***********
@@ -132,7 +133,7 @@ video_display_h += $(stopwatch_h)
 
 #*** main cpp ***
 
-main_c := $(pltfm)/viewer_main_ubuntu.cpp
+main_c := $(pltfm)/filter_main_ubuntu.cpp
 main_o := $(build)/main.o
 obj    := $(main_o)
 

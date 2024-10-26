@@ -11,6 +11,15 @@
 #include "../qsprintf/qsprintf.hpp"
 #include <cstring>
 
+
+class StringView
+{
+public:
+    char* begin = 0;
+    u32 capacity = 0;
+    u32 length = 0;
+};
+
 #endif
 
 namespace mb = memory_buffer;
@@ -23,15 +32,6 @@ class SpanView
 public:
 	T* data = 0;
 	u32 length = 0;
-};
-
-
-class StringView
-{
-public:
-    char* begin = 0;
-    u32 capacity = 0;
-    u32 length = 0;
 };
 
 

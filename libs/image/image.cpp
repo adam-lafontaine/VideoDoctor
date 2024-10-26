@@ -3,7 +3,6 @@
 #include "image.hpp"
 #include "../util/numeric.hpp"
 
-namespace sp = span;
 namespace num = numeric;
 
 
@@ -94,7 +93,7 @@ namespace image
     {
         assert(view.matrix_data_);
 
-        sp::fill_32(to_span(view), color);
+        span::fill_32(to_span(view), color);
     }
 
 
@@ -104,124 +103,101 @@ namespace image
 
         for (u32 y = 0; y < view.height; y++)
         {
-            sp::fill_32(row_span(view, y), color);
+            span::fill_32(row_span(view, y), color);
         }
     }
 }
 
 
-/* gradient */
+/* copy */
 
 namespace image
 {
-    void gradient_x(GrayView const& src, GrayView const& dst)
+    template <class VIEW_S, class VIEW_D>
+    static void copy_view(VIEW_S const& src, VIEW_D const& dst)
     {
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(dst.width == src.width - 2);
-        assert(dst.height == src.height - 2);
+        span::copy(to_span(src), to_span(dst));
+    }
 
-        /*
-        constexpr f32 grad[9] = {
-            -0.25f,  0.0f,  0.25f,
-            -0.50f,  0.0f,  0.50f,
-            -0.25f,  0.0f,  0.25f,
-        };
-        */
 
-        auto r1 = row_begin(src, 0);
-        auto r2 = row_begin(src, 1);
-        auto r3 = row_begin(src, 2);
-        auto d = row_begin(dst, 0);
-
-        for (u32 y = 0; y < dst.height; y++)
+    template <class VIEW_S, class VIEW_D>
+    static void copy_sub_view(VIEW_S const& src, VIEW_D const& dst)
+    {
+        for (u32 y = 0; y < src.height; y++)
         {
-            for (u32 x = 0; x < dst.width; x++)
-            {
-                auto g = 0.25f * (r1[x + 2] - r1[x] + r3[x + 2] - r3[x]) + 0.5f * (r2[x + 2] - r2[x]);
-                d[x] = num::round_to_unsigned<u8>(g);
-            }
-
-            r1 += src.width;
-            r2 += src.width;
-            r3 += src.width;
-            d += dst.width;
+            span::copy(row_span(src, y), row_span(dst, y));
         }
     }
 
 
-    void gradient_y(GrayView const& src, GrayView const& dst)
+    void copy(ImageView const& src, ImageView const& dst)
     {
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
-        assert(dst.width == src.width - 2);
-        assert(dst.height == src.height - 2);
+        assert(dst.width == src.width);
+        assert(dst.height == src.height);
 
-        /*
-        constexpr f32 grad[9] = {
-            -0.25f, -0.50f, -0.25f,
-             0.0f,   0.0f,   0.0f,
-             0.25f,  0.50f,  0.25f,
-        };
-        */
+        copy_view(src, dst);
+    }    
 
-        auto r1 = row_begin(src, 0);
-        auto r2 = row_begin(src, 1);
-        auto r3 = row_begin(src, 2);
-        auto d = row_begin(dst, 0);
 
-        auto sw = src.width;
-        auto dw = dst.width;
+    void copy(ImageView const& src, SubView const& dst)
+    {
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width);
+        assert(dst.height == src.height);
 
-        for (u32 y = 0; y < dst.height; y++)
-        {
-            for (u32 x = 0; x < dst.width; x++)
-            {
-                auto g = 0.25f * (r3[x] - r1[x] + r3[x + 2] - r1[x + 2]) + 0.5f * (r3[x + 1] - r1[x + 1]);
-                d[x] = num::round_to_unsigned<u8>(g);
-            }
+        copy_sub_view(src, dst);
+    }
 
-            r1 += sw;
-            r2 += sw;
-            r3 += sw;
-            d += dw;
-        }
+
+    void copy(SubView const& src, ImageView const& dst)
+    {
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width);
+        assert(dst.height == src.height);
+
+        copy_sub_view(src, dst);
+    }
+
+
+    void copy(SubView const& src, SubView const& dst)
+    {
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width);
+        assert(dst.height == src.height);
+
+        copy_sub_view(src, dst);
     }
 }
 
 
-/* scale */
+/* transform */
 
 namespace image
 {
-    void scale_down_max(GrayView const& src, GrayView const& dst)
+    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func)
     {
-        constexpr u32 scale = 2;
-
         assert(src.matrix_data_);
+        assert(src.width);
+        assert(src.height);
         assert(dst.matrix_data_);
-        assert(dst.width == src.width / scale);
-        assert(dst.height == src.height / scale);
+        assert(dst.width);
+        assert(dst.height);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
 
-        auto r1 = row_begin(src, 0);
-        auto r2 = row_begin(src, 1);
-        auto d = row_begin(dst, 0);
+        auto s = to_span(src).data;
+        auto d = to_span(dst).data;
 
-        auto sw = scale * src.width;
-        auto dw = dst.width;
+        auto len = src.width * src.height;
 
-        for (u32 y = 0; y < dst.height; y++)
+        for (u32 i = 0; i < len; i++)
         {
-            u32 sx = 0;
-            for (u32 x = 0; x < dst.width; x++)
-            {
-                d[x] = num::max(r1[sx], r1[sx + 1], r2[sx], r2[sx + 1]);
-                sx += scale;
-            }
-
-            r1 += sw;
-            r2 += sw;
-            d += dw;
+            d[i] = func(s[i]);
         }
     }
 }
