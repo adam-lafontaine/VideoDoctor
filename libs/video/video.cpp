@@ -327,3 +327,111 @@ namespace video
         convert_frame(av_src, av_dst);
     }
 }
+
+
+/* crop video */
+
+namespace video
+{
+namespace crop
+{
+    bool create_video(Video const& src, Video& dst, cstr dst_path, u32 width, u32 height)
+    {
+        auto data = mem::malloc<VideoContext>("video context");
+        if (!data)
+        {
+            return false;
+        }
+
+        dst.video_handle = (u64)data;
+
+        auto& ctx = get_context(dst);
+
+        auto& src_ctx = get_context(src);
+        auto src_stream = src_ctx.format_ctx->streams[src_ctx.video_stream_index];
+        auto src_cp = src_stream->codecpar;
+        auto codec = avcodec_find_decoder(src_cp->codec_id);
+        if (!codec)
+        {
+            return false;
+        }
+        
+        if (avformat_alloc_output_context2(&ctx.format_ctx, nullptr, nullptr, dst_path) < 0)
+        {
+            return false;
+        }
+
+        auto stream = avformat_new_stream(ctx.format_ctx, nullptr);
+        if (!stream)
+        {
+            avformat_free_context(ctx.format_ctx);
+            return false;
+        }
+
+        ctx.codec_ctx = avcodec_alloc_context3(codec);
+        if (!ctx.codec_ctx)
+        {
+            avformat_free_context(ctx.format_ctx);
+            return false;
+        }
+        
+        ctx.codec_ctx->codec_id = codec->id;
+        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
+        ctx.codec_ctx->pix_fmt = src_ctx.codec_ctx->pix_fmt;
+        ctx.codec_ctx->width = (int)width;
+        ctx.codec_ctx->height = (int)height;
+        ctx.codec_ctx->time_base = src_stream->time_base;
+
+        if (avcodec_open2(ctx.codec_ctx, codec, nullptr) != 0)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            return false;
+        }
+
+        if (avcodec_parameters_from_context(stream->codecpar, ctx.codec_ctx) < 0)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            return false;
+        }
+
+        if (avio_open(&ctx.format_ctx->pb, dst_path, AVIO_FLAG_WRITE) < 0)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            return false;
+        }
+
+        avformat_write_header(ctx.format_ctx, nullptr);
+
+        ctx.frame = av_frame_alloc();
+        if (!ctx.frame)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            return false;
+        }
+
+        ctx.packet = av_packet_alloc();
+        if (!ctx.packet)
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            av_frame_free(&ctx.frame);
+            return false;
+        }
+
+        dst.frame_width = width;
+        dst.frame_height = height;
+
+        return true;
+    }
+
+
+    bool next_frame(Video const& src, Video& dst, Point2Du32 crop_xy)
+    {
+
+    }
+}
+}
