@@ -11,7 +11,7 @@ namespace video
     class FrameRGBA
     {
     public:
-        u64 handel = 0;
+        u64 frame_handle = 0;
 
         img::ImageView view;
 
@@ -22,7 +22,7 @@ namespace video
     {
     public:
 
-        u64 handel = 0;
+        u64 video_handle = 0;
 
         u32 frame_width = 0;
         u32 frame_height = 0;
@@ -39,5 +39,5 @@ namespace video
 
     void close_video(Video& video);
 
-    bool next_frame(Video& video, FrameRGBA& frame);
+    bool next_frame(Video const& video, FrameRGBA const& frame);
 }

@@ -52,7 +52,7 @@ namespace video
 
     static VideoContext& get_context(Video video)
     {
-        return *(VideoContext*)(video.handel);
+        return *(VideoContext*)(video.video_handle);
     }
 }
 
@@ -61,35 +61,24 @@ namespace video
 
 namespace video
 {
-    bool init()
-    {
-        auto ctx = mem::malloc<VideoContext>("video context");
-        if (!ctx)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-
     bool create_frame(FrameRGBA& frame, u32 width, u32 height)
     {
         auto w = (int)width;
         auto h = (int)height;
         auto fmt = AV_PIX_FMT_RGBA;
+        int align = 32;
 
         AVFrame* av_frame = av_frame_alloc();
         av_frame->format = fmt;
         av_frame->width = w;
         av_frame->height = h;
 
-        if (av_image_alloc(av_frame->data, av_frame->linesize, w, h, fmt, 32) < 0)
+        if (av_image_alloc(av_frame->data, av_frame->linesize, w, h, fmt, align) < 0)
         {
             return false;
         }
 
-        frame.handel = (u64)av_frame;
+        frame.frame_handle = (u64)av_frame;
 
         frame.view.width = width;
         frame.view.height = height;
@@ -101,10 +90,10 @@ namespace video
 
     void destroy_frame(FrameRGBA& frame)
     {
-        auto av_frame = (AVFrame*)frame.handel;
+        auto av_frame = (AVFrame*)frame.frame_handle;
         av_frame_free(&av_frame);
 
-        frame.handel = 0;
+        frame.frame_handle = 0;
         frame.view.matrix_data_ = 0;
     }
 
@@ -117,7 +106,7 @@ namespace video
             return false;
         }
 
-        video.handel = (u64)data;
+        video.video_handle = (u64)data;
 
         auto& ctx = get_context(video);
 
@@ -211,7 +200,7 @@ namespace video
 
     void close_video(Video& video)
     {
-        if (!video.handel)
+        if (!video.video_handle)
         {
             return;
         }
@@ -225,14 +214,14 @@ namespace video
 
         mem::free(&ctx);
 
-        video.handel = 0;
+        video.video_handle = 0;
     }
 
 
-    bool next_frame(Video& video, FrameRGBA& frame)
+    bool next_frame(Video const& video, FrameRGBA const& frame)
     {
         auto& ctx = get_context(video);
-        auto av_frame = (AVFrame*)frame.handel;
+        auto av_frame = (AVFrame*)frame.frame_handle;
 
         for (;;)
         {
