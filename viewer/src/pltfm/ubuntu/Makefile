@@ -33,7 +33,7 @@ program_exe := $(build)/$(exe)
 
 #*** imgui ***
 
-imgui := $(pltfm)
+imgui := $(src)/pltfm/imgui_sdl2_ogl3
 imgui_options_h := $(imgui)/imgui_options.hpp
 
 imgui_include_h := $(imgui)/imgui_include.hpp
