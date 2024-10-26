@@ -2,7 +2,12 @@
 
 #include "../span/span.hpp"
 
+#include <functional>
+
 namespace mb = memory_buffer;
+
+template <class F>
+using fn = std::function<F>;
 
 
 /*  image basic */
@@ -340,4 +345,12 @@ namespace image
     void copy(SubView const& src, ImageView const& dst);
 
     void copy(SubView const& src, SubView const& dst);
+}
+
+
+/* transform */
+
+namespace image
+{
+    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func);
 }

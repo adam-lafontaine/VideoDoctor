@@ -173,3 +173,31 @@ namespace image
         copy_sub_view(src, dst);
     }
 }
+
+
+/* transform */
+
+namespace image
+{
+    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func)
+    {
+        assert(src.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.matrix_data_);
+        assert(dst.width);
+        assert(dst.height);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
+
+        auto s = to_span(src).data;
+        auto d = to_span(dst).data;
+
+        auto len = src.width * src.height;
+
+        for (u32 i = 0; i < len; i++)
+        {
+            d[i] = func(s[i]);
+        }
+    }
+}

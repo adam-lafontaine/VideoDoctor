@@ -57,6 +57,8 @@ namespace video_display
 
         ImGui::FileBrowser fb_video;
 
+
+
         img::Buffer32 pixel_buffer;
     };
 }
@@ -151,6 +153,26 @@ namespace internal
     }
 
 
+    static void process_frame(DisplayState& state)
+    {
+        auto& src = state.video_frame.view;
+        auto& dst = state.filter_frame.view;
+
+        auto f = [](img::Pixel p)
+        {
+            u8 r = p.red;
+            p.red = p.blue;
+            p.blue = r;
+
+            return p;
+        };
+
+        img::transform(src, dst, f);
+
+        vid::resize_frame(state.filter_frame, state.display_filter_frame);
+    }
+    
+    
     static void play_video(DisplayState& state)
     {
         constexpr f64 NANO = 1'000'000'000;
@@ -168,7 +190,7 @@ namespace internal
         {
             not_eof = vid::next_frame(state.video, frames);
 
-            img::copy(state.display_frame.view, state.display_filter_frame.view);
+            process_frame(state);
 
             cap_framerate(sw, target_ns);
         }

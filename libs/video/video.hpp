@@ -46,4 +46,6 @@ namespace video
     bool next_frame(Video const& video, FrameRGBA const& frame);
 
     bool next_frame(Video const& video, FrameList const& frames);
+
+    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
 }

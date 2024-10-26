@@ -317,4 +317,13 @@ namespace video
 
         return true;
     }
+
+
+    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst)
+    {
+        auto av_src = (AVFrame*)src.frame_handle;
+        auto av_dst = (AVFrame*)dst.frame_handle;
+
+        convert_frame(av_src, av_dst);
+    }
 }
