@@ -43,12 +43,17 @@ namespace video_display
         vid::FrameRGBA display_frame;
         ImTextureID display_frame_texture;
 
+        img::ImageView filter_view;
+        ImTextureID filter_texture;
+
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
 
         fs::path video_filepath;
 
         ImGui::FileBrowser fb_video;
+
+        img::Buffer32 pixel_buffer;
     };
 }
 
@@ -137,6 +142,8 @@ namespace internal
         {
             not_eof = vid::next_frame(state.video, state.display_frame);
 
+            img::copy(state.display_frame.view, state.filter_view);            
+
             cap_framerate(sw, target_ns);
         }
 
@@ -176,6 +183,8 @@ namespace internal
 }
 
 
+/* windows */
+
 namespace video_display
 {
     void video_frame_window(DisplayState& state)
@@ -204,7 +213,7 @@ namespace video_display
         if (open_disabled) { ImGui::EndDisabled(); }
 
         ImGui::SameLine();
-        ImGui::Text("path: %s", state.video_filepath.string().c_str());
+        ImGui::Text("file: %s", state.video_filepath.string().c_str());
 
         if (load_disabled) { ImGui::BeginDisabled(); }
         
@@ -254,11 +263,29 @@ namespace video_display
     }
 
 
+    void video_filter_window(DisplayState& state)
+    {
+        auto view = state.filter_view;
+        auto dims = ImVec2(view.width, view.height);
+        auto texture = state.filter_texture;
+
+        ImGui::Begin("Filter");
+
+        ImGui::Image(texture, dims);
+
+        ImGui::End();
+    }
+}
+
+
+namespace video_display
+{    
     inline void destroy(DisplayState& state)
     {
         internal::pause_video(state);
         vid::destroy_frame(state.display_frame);
         vid::close_video(state.video);
+        mb::destroy_buffer(state.pixel_buffer);
     }
 
 
@@ -271,6 +298,14 @@ namespace video_display
         {
             return false;
         }
+
+        state.pixel_buffer = img::create_buffer32(w * h, "filter_view");
+        if (!state.pixel_buffer.ok)
+        {
+            return false;
+        }
+
+        state.filter_view = img::make_view(w, h, state.pixel_buffer);
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");

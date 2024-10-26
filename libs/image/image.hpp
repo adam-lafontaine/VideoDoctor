@@ -173,7 +173,10 @@ namespace image
     {
         return view.matrix_data_ + (u64)(view.y_begin + y) * view.matrix_width + view.x_begin;
     }
-}/* xy_at */
+}
+
+
+/* xy_at */
 
 namespace image
 {
@@ -326,19 +329,15 @@ namespace image
 }
 
 
-/* gradient */
+/* copy */
 
 namespace image
 {
-    void gradient_x(GrayView const& src, GrayView const& dst);
+    void copy(ImageView const& src, ImageView const& dst);
 
-    void gradient_y(GrayView const& src, GrayView const& dst);
-}
+    void copy(ImageView const& src, SubView const& dst);
 
+    void copy(SubView const& src, ImageView const& dst);
 
-/* scale */
-
-namespace image
-{
-    void scale_down_max(GrayView const& src, GrayView const& dst);
+    void copy(SubView const& src, SubView const& dst);
 }
