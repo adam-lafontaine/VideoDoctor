@@ -168,8 +168,6 @@ namespace internal
         };
 
         img::transform(src, dst, f);
-
-        vid::resize_frame(state.filter_frame, state.display_filter_frame);
     }
     
     
@@ -191,6 +189,8 @@ namespace internal
             not_eof = vid::next_frame(state.video, frames);
 
             process_frame(state);
+
+            vid::resize_frame(state.filter_frame, state.display_filter_frame);
 
             cap_framerate(sw, target_ns);
         }
