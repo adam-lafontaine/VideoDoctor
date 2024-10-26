@@ -20,6 +20,7 @@ namespace video
         auto sws_ctx = sws_getContext(
             src->width, src->height, 
             (AVPixelFormat)src->format,
+
             dst->width, dst->height, 
             (AVPixelFormat)dst->format,
             SWS_BILINEAR, nullptr, nullptr, nullptr);
@@ -90,6 +91,11 @@ namespace video
 
     void destroy_frame(FrameRGBA& frame)
     {
+        if (!frame.frame_handle)
+        {
+            return;
+        }
+
         auto av_frame = (AVFrame*)frame.frame_handle;
         av_frame_free(&av_frame);
 
@@ -188,8 +194,8 @@ namespace video
             return false;
         }
 
-        video.frame_width = (u32)ctx.frame->width;
-        video.frame_height = (u32)ctx.frame->height;
+        video.frame_width = (u32)cp->width;
+        video.frame_height = (u32)cp->height;
 
         auto stream = ctx.format_ctx->streams[video_stream_index];
         video.fps = av_q2d(stream->avg_frame_rate);
@@ -220,8 +226,7 @@ namespace video
 
     bool next_frame(Video const& video, FrameRGBA const& frame)
     {
-        auto& ctx = get_context(video);
-        auto av_frame = (AVFrame*)frame.frame_handle;
+        auto& ctx = get_context(video);        
 
         for (;;)
         {
@@ -256,7 +261,58 @@ namespace video
             break;
         }
 
+        auto av_frame = (AVFrame*)frame.frame_handle;
+
         convert_frame(ctx.frame, av_frame);
+        av_packet_unref(ctx.packet);
+
+        return true;
+    }
+
+
+    bool next_frame(Video const& video, FrameList const& frames)
+    {
+        auto& ctx = get_context(video);        
+
+        for (;;)
+        {
+            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
+            {
+                //assert("*** av_read_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
+
+            if (ctx.packet->stream_index != ctx.video_stream_index)
+            {
+                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
+            {
+                assert("*** avcodec_send_packet ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
+
+            if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame) < 0)
+            {
+                //assert("*** avcodec_receive_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            break;
+        }
+
+        for (auto& frame : frames)
+        {
+            auto av_frame = (AVFrame*)frame.frame_handle;
+            convert_frame(ctx.frame, av_frame);
+        }
+
         av_packet_unref(ctx.packet);
 
         return true;

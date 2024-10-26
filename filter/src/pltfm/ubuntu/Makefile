@@ -125,6 +125,7 @@ video_c += $(video_h)
 video_display := $(src)/video_display
 
 video_display_h := $(video_display)/video_display.hpp
+video_display_h += $(video_h)
 video_display_h += $(stopwatch_h)
 
 #***********

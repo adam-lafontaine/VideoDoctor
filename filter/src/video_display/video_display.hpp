@@ -40,11 +40,15 @@ namespace video_display
 
         vid::Video video;
 
+        // load
+        vid::FrameRGBA video_frame;
         vid::FrameRGBA display_frame;
-        ImTextureID display_frame_texture;
+        ImTextureID display_texture;
 
-        img::ImageView filter_view;
-        ImTextureID filter_texture;
+        // init
+        vid::FrameRGBA filter_frame;
+        vid::FrameRGBA display_filter_frame;
+        ImTextureID display_filter_texture;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
@@ -86,7 +90,27 @@ namespace internal
 
         reset_video(state);
 
-        return vid::open_video(state.video, state.video_filepath.string().c_str());
+        auto ok = vid::open_video(state.video, state.video_filepath.string().c_str());
+        if (!ok)
+        {
+            return false;
+        }
+
+        auto w = state.video.frame_width;
+        auto h = state.video.frame_height;
+
+        assert(w && h && "*** Bad video dimensions ***");
+
+        vid::destroy_frame(state.video_frame);
+        vid::destroy_frame(state.filter_frame);
+
+        ok = vid::create_frame(state.video_frame, w, h) && vid::create_frame(state.filter_frame, w, h);
+        if (!ok)
+        {
+            return false;
+        }
+
+        return true;
     }
 
 
@@ -136,13 +160,15 @@ namespace internal
         state.play_status = VPS::Play;
         auto not_eof = true;
 
+        vid::FrameList frames = { state.video_frame, state.display_frame };
+
         Stopwatch sw;
         sw.start();
         while (state.play_status == VPS::Play && not_eof)
         {
-            not_eof = vid::next_frame(state.video, state.display_frame);
+            not_eof = vid::next_frame(state.video, frames);
 
-            img::copy(state.display_frame.view, state.filter_view);            
+            img::copy(state.display_frame.view, state.display_filter_frame.view);
 
             cap_framerate(sw, target_ns);
         }
@@ -194,7 +220,7 @@ namespace video_display
 
         auto view = state.display_frame.view;
         auto dims = ImVec2(view.width, view.height);
-        auto texture = state.display_frame_texture;
+        auto texture = state.display_texture;
 
         auto open_disabled = state.play_status == VPS::Play;
         auto load_disabled = state.load_status != VLS::NotLoaded;
@@ -265,9 +291,9 @@ namespace video_display
 
     void video_filter_window(DisplayState& state)
     {
-        auto view = state.filter_view;
+        auto view = state.display_filter_frame.view;
         auto dims = ImVec2(view.width, view.height);
-        auto texture = state.filter_texture;
+        auto texture = state.display_filter_texture;
 
         ImGui::Begin("Filter");
 
@@ -283,7 +309,10 @@ namespace video_display
     inline void destroy(DisplayState& state)
     {
         internal::pause_video(state);
+        vid::destroy_frame(state.video_frame);
         vid::destroy_frame(state.display_frame);
+        vid::destroy_frame(state.filter_frame);
+        vid::destroy_frame(state.display_filter_frame);
         vid::close_video(state.video);
         mb::destroy_buffer(state.pixel_buffer);
     }
@@ -291,21 +320,18 @@ namespace video_display
 
     inline bool init(DisplayState& state)
     {
-        u32 w = 640;
-        u32 h = 360;
-        
-        if (!vid::create_frame(state.display_frame, w, h))
+        u32 display_w = 640;
+        u32 display_h = 360;
+
+        if (!vid::create_frame(state.display_frame, display_w, display_h))
         {
             return false;
         }
 
-        state.pixel_buffer = img::create_buffer32(w * h, "filter_view");
-        if (!state.pixel_buffer.ok)
+        if (!vid::create_frame(state.display_filter_frame, display_w, display_h))
         {
             return false;
         }
-
-        state.filter_view = img::make_view(w, h, state.pixel_buffer);
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");

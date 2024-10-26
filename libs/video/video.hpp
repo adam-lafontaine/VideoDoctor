@@ -2,11 +2,12 @@
 
 #include "../image/image.hpp"
 
+#include <initializer_list>
+
 
 namespace video
 {
     namespace img = image;
-
 
     class FrameRGBA
     {
@@ -31,6 +32,9 @@ namespace video
     };
 
 
+    using FrameList = std::initializer_list<FrameRGBA>;
+
+
     bool create_frame(FrameRGBA& frame, u32 width, u32 height);
 
     void destroy_frame(FrameRGBA& frame);
@@ -40,4 +44,6 @@ namespace video
     void close_video(Video& video);
 
     bool next_frame(Video const& video, FrameRGBA const& frame);
+
+    bool next_frame(Video const& video, FrameList const& frames);
 }
