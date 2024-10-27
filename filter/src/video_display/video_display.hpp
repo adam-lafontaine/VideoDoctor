@@ -296,7 +296,7 @@ namespace video_display
         }
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
-        ImGui::Text("%3.1f fps", state.video.fps);
+        ImGui::Text("%ux%u %3.1f fps", state.video.frame_width, state.video.frame_height, state.video.fps);
        
         ImGui::End();
         

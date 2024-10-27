@@ -367,17 +367,20 @@ namespace crop
         auto codec = avcodec_find_decoder(src_cp->codec_id);
         if (!codec)
         {
+            assert("*** avcodec_find_decoder ***" && false);
             return false;
         }
         
         if (avformat_alloc_output_context2(&ctx.format_ctx, nullptr, nullptr, dst_path) < 0)
         {
+            assert("***  ***" && false);
             return false;
         }
 
         auto stream = avformat_new_stream(ctx.format_ctx, nullptr);
         if (!stream)
         {
+            assert("*** avformat_alloc_output_context2 ***" && false);
             avformat_free_context(ctx.format_ctx);
             return false;
         }
@@ -385,6 +388,7 @@ namespace crop
         ctx.codec_ctx = avcodec_alloc_context3(codec);
         if (!ctx.codec_ctx)
         {
+            assert("*** avcodec_alloc_context3 ***" && false);
             avformat_free_context(ctx.format_ctx);
             return false;
         }
@@ -398,6 +402,7 @@ namespace crop
 
         if (avcodec_open2(ctx.codec_ctx, codec, nullptr) != 0)
         {
+            assert("*** avcodec_open2 ***" && false);
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             return false;
@@ -405,6 +410,7 @@ namespace crop
 
         if (avcodec_parameters_from_context(stream->codecpar, ctx.codec_ctx) < 0)
         {
+            assert("*** avcodec_parameters_from_context ***" && false);
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             return false;
@@ -412,6 +418,7 @@ namespace crop
 
         if (avio_open(&ctx.format_ctx->pb, dst_path, AVIO_FLAG_WRITE) < 0)
         {
+            assert("*** avio_open ***" && false);
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             return false;
@@ -419,6 +426,7 @@ namespace crop
 
         if (avformat_write_header(ctx.format_ctx, nullptr) < 0)
         {
+            assert("***  ***" && false);
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             return false;
@@ -427,6 +435,7 @@ namespace crop
         ctx.frame = av_frame_alloc();
         if (!ctx.frame)
         {
+            assert("*** avformat_write_header ***" && false);
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             return false;
@@ -442,6 +451,7 @@ namespace crop
         ctx.frame->height = h;
         if (av_image_alloc(ctx.frame->data, ctx.frame->linesize, w, h, fmt, align) < 0)
         {
+            assert("*** av_image_alloc ***" && false);
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
             return false;

@@ -39,6 +39,7 @@ namespace video_display
     public:
 
         vid::Video video;
+        vid::Video crop_video;
 
         // load
         vid::FrameRGBA video_frame;
@@ -111,6 +112,15 @@ namespace internal
         {
             return false;
         }
+
+        u32 crop_w = 960;
+        u32 crop_h = 540;
+        cstr crop_path = "out.mp4";
+        ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
+        if (!ok)
+        {
+            return false;
+        }        
 
         return true;
     }
@@ -296,7 +306,7 @@ namespace video_display
         }
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
-        ImGui::Text("%3.1f fps", state.video.fps);
+        ImGui::Text("%ux%u %3.1f fps", state.video.frame_width, state.video.frame_height, state.video.fps);
        
         ImGui::End();
         
@@ -336,6 +346,7 @@ namespace video_display
         vid::destroy_frame(state.filter_frame);
         vid::destroy_frame(state.display_filter_frame);
         vid::close_video(state.video);
+        vid::close_video(state.crop_video);
         mb::destroy_buffer(state.pixel_buffer);
     }
 

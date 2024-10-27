@@ -48,4 +48,14 @@ namespace video
     bool next_frame(Video const& video, FrameList const& frames);
 
     void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
+
+
+namespace crop
+{
+    bool create_video(Video const& src, Video& dst, cstr dst_path, u32 width, u32 height);
+
+    bool next_frame(Video const& src, Video& dst, Point2Du32 crop_xy);
+
+    void save_and_close_video(Video& video);
+}
 }
