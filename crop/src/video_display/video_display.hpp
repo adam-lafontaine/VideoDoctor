@@ -42,12 +42,10 @@ namespace video_display
         vid::VideoGen crop_video;
 
         // load
-        vid::FrameRGBA video_frame;
         vid::FrameRGBA display_frame;
         ImTextureID display_texture;
 
         // init
-        vid::FrameRGBA filter_frame;
         vid::FrameRGBA display_filter_frame;
         ImTextureID display_filter_texture;
 
@@ -88,6 +86,7 @@ namespace internal
         auto path = state.video_filepath;
         if (!fs::exists(path) || !fs::is_regular_file(path))
         {
+            assert("*** bad video path ***" && false);
             return false;
         }
 
@@ -96,6 +95,7 @@ namespace internal
         auto ok = vid::open_video(state.video, state.video_filepath.string().c_str());
         if (!ok)
         {
+            assert("*** vid::open_video ***" && false);
             return false;
         }
 
@@ -104,21 +104,13 @@ namespace internal
 
         assert(w && h && "*** Bad video dimensions ***");
 
-        u32 crop_w = 960;
-        u32 crop_h = 540;
-        cstr crop_path = "out.mp4";
+        u32 crop_w = w / 2;
+        u32 crop_h = h / 2;
+        cstr crop_path = "/home/adam/Repos/VideoDoctor/crop/build/out.mp4";
         ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
         if (!ok)
         {
-            return false;
-        }
-
-        vid::destroy_frame(state.video_frame);
-        vid::destroy_frame(state.filter_frame);
-
-        ok = vid::create_frame(state.video_frame, w, h) && vid::create_frame(state.filter_frame, w, h);
-        if (!ok)
-        {
+            assert("*** vid::crop::create_video ***" && false);
             return false;
         }
 
@@ -163,7 +155,7 @@ namespace internal
     }
 
 
-    static void process_frame(DisplayState& state)
+    /*static void process_frame(DisplayState& state)
     {
         auto& src = state.video_frame.view;
         auto& dst = state.filter_frame.view;
@@ -180,7 +172,7 @@ namespace internal
         };
 
         img::transform(src, dst, f);
-    }
+    }*/
     
     
     static void play_video(DisplayState& state)
@@ -192,17 +184,24 @@ namespace internal
         state.play_status = VPS::Play;
         auto not_eof = true;
 
-        vid::FrameList frames = { state.video_frame, state.display_frame };
+        auto w = state.video.frame_width;
+        auto h = state.video.frame_height;
+
+        Point2Du32 crop_xy = { w / 4, h / 4 }; 
+
+        vid::FrameList src_frames = { state.display_frame };
+        vid::FrameList dst_frames = { state.display_filter_frame };
 
         Stopwatch sw;
         sw.start();
         while (state.play_status == VPS::Play && not_eof)
         {
-            not_eof = vid::next_frame(state.video, frames);
+            //not_eof = vid::next_frame(state.video, frames);
+            not_eof = vid::crop::next_frame(state.video, state.crop_video, crop_xy, src_frames, dst_frames);
 
-            process_frame(state);
+            //process_frame(state);
 
-            vid::resize_frame(state.filter_frame, state.display_filter_frame);
+            //vid::resize_frame(state.filter_frame, state.display_filter_frame);
 
             //cap_framerate(sw, target_ns);
         }
@@ -210,6 +209,7 @@ namespace internal
         if (!not_eof)
         {
             reset_video(state);
+            vid::crop::save_and_close_video(state.crop_video);
         }
     }
 
@@ -343,9 +343,9 @@ namespace video_display
     inline void destroy(DisplayState& state)
     {
         internal::pause_video(state);
-        vid::destroy_frame(state.video_frame);
+        //vid::destroy_frame(state.video_frame);
         vid::destroy_frame(state.display_frame);
-        vid::destroy_frame(state.filter_frame);
+        //vid::destroy_frame(state.filter_frame);
         vid::destroy_frame(state.display_filter_frame);
         vid::close_video(state.video);
         vid::crop::close_video(state.crop_video); //!

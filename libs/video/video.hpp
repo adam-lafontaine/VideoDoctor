@@ -53,9 +53,9 @@ namespace video
 
     void close_video(Video& video);
 
-    bool next_frame(Video const& video, FrameRGBA const& frame);
+    bool next_frame(Video const& video, FrameRGBA const& frame_out);
 
-    bool next_frame(Video const& video, FrameList const& frames);
+    bool next_frame(Video const& video, FrameList const& frames_out);
 
     void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
 
@@ -64,7 +64,7 @@ namespace crop
 {
     bool create_video(Video const& src, VideoGen& dst, cstr dst_path, u32 width, u32 height);
 
-    bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy);
+    bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy, FrameList const& src_out, FrameList const& dst_out);
 
     void close_video(VideoGen& video);
 

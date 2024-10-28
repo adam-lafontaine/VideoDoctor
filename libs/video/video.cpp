@@ -19,10 +19,12 @@ namespace video
     public:
         AVFormatContext* format_ctx;
         AVCodecContext* codec_ctx;
+        AVStream* stream;
 
         AVFrame* frame;
         AVPacket* packet;
-        AVStream* stream;
+
+        FrameRGBA frame_rgba;        
     };
 
 
@@ -31,9 +33,11 @@ namespace video
     public:
         AVFormatContext* format_ctx;
         AVCodecContext* codec_ctx;
+        AVStream* stream;
 
         AVFrame* frame;
 
+        FrameRGBA frame_rgba;
     };
 
 
@@ -47,6 +51,15 @@ namespace video
     {
         return *(VideoGenContext*)(video.video_handle);
     }
+
+
+    static inline AVFrame* av_frame(FrameRGBA const& frame_rgba)
+    {
+        return (AVFrame*)frame_rgba.frame_handle;
+    }
+
+
+
 }
 
 
@@ -137,25 +150,62 @@ namespace video
     }
 
 
-    static void crop_frame(AVFrame* src, AVFrame* dst, int dst_width, int dst_height, int crop_x, int crop_y) 
+    static int get_bytes_per_pixel(AVPixelFormat pix_fmt) 
     {
-        auto sws_ctx = create_sws(src, dst);
-
-        uint8_t* srcSlice[AV_NUM_DATA_POINTERS];
-        int srcStride[AV_NUM_DATA_POINTERS];
-        
-        for (int i = 0; i < AV_NUM_DATA_POINTERS; i++) 
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+        if (!desc) 
         {
-            srcSlice[i] = src->data[i] + crop_y * src->linesize[i] + crop_x * (i == 0 ? 1 : 0);
-            srcStride[i] = src->linesize[i];
+            return -1;
         }
-        
-        sws_scale(
-            sws_ctx,
-            srcSlice, srcStride, 0, dst_height,
-            dst->data, dst->linesize);
 
-        sws_freeContext(sws_ctx);
+        if (desc->flags & AV_PIX_FMT_FLAG_PLANAR) 
+        {
+            // Planar formats, where we deal with each plane separately
+            return 1; // Usually, each plane has 1 byte per pixel component in planar formats
+        } 
+        else 
+        {
+            // Packed formats
+            int bits_per_pixel = 0;
+            for (int i = 0; i < desc->nb_components; i++) 
+            {
+                bits_per_pixel += desc->comp[i].depth;
+            }
+
+            return (bits_per_pixel + 7) / 8;  // Round up to nearest byte
+        }
+    }
+
+
+    static bool write_frame(VideoGenContext& dst_ctx)
+    {
+        // Encode cropped frame and write it to the output file
+        AVPacket out_packet;
+        av_init_packet(&out_packet);
+        out_packet.data = nullptr;
+        out_packet.size = 0;
+
+        if (avcodec_send_frame(dst_ctx.codec_ctx, dst_ctx.frame) < 0)
+        {
+            assert("*** avcodec_send_frame ***" && false);
+            return false;
+        }
+
+        if (avcodec_receive_packet(dst_ctx.codec_ctx, &out_packet) < 0)
+        {
+            assert("*** avcodec_send_frame ***" && false);
+            return false;
+        }        
+        
+        if (!av_write_frame(dst_ctx.format_ctx, &out_packet))
+        {
+            assert("*** avcodec_send_frame ***" && false);
+            return false;
+        }
+
+        av_packet_unref(&out_packet);
+
+        return true;
     }
 }
 
@@ -298,6 +348,15 @@ namespace video
         auto stream = ctx.format_ctx->streams[video_stream_index];
         video.fps = av_q2d(stream->avg_frame_rate);
 
+        if (!create_frame(ctx.frame_rgba, video.frame_width, video.frame_height))
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            av_frame_free(&ctx.frame);
+            av_packet_free(&ctx.packet);
+            return false;
+        }
+
         return true;
     }
 
@@ -312,7 +371,7 @@ namespace video
         auto& ctx = get_context(video);
 
         av_frame_free(&ctx.frame);
-        av_packet_free(&ctx.packet);        
+        av_packet_free(&ctx.packet);
         avcodec_close(ctx.codec_ctx);
         avformat_close_input(&ctx.format_ctx);
 
@@ -322,7 +381,7 @@ namespace video
     }
 
 
-    bool next_frame(Video const& video, FrameRGBA const& frame)
+    bool next_frame(Video const& video, FrameRGBA const& frame_out)
     {
         auto& ctx = get_context(video);        
 
@@ -331,16 +390,16 @@ namespace video
             return false;
         }
 
-        auto av_frame = (AVFrame*)frame.frame_handle;
+        convert_frame(ctx.frame, av_frame(ctx.frame_rgba));
+        convert_frame(ctx.frame, av_frame(frame_out));
 
-        convert_frame(ctx.frame, av_frame);
         av_packet_unref(ctx.packet);
 
         return true;
     }
 
 
-    bool next_frame(Video const& video, FrameList const& frames)
+    bool next_frame(Video const& video, FrameList const& frames_out)
     {
         auto& ctx = get_context(video);        
 
@@ -349,10 +408,11 @@ namespace video
             return false;
         }
 
-        for (auto& frame : frames)
+        convert_frame(ctx.frame, av_frame(ctx.frame_rgba));
+
+        for (auto& frame : frames_out)
         {
-            auto av_frame = (AVFrame*)frame.frame_handle;
-            convert_frame(ctx.frame, av_frame);
+            convert_frame(ctx.frame, av_frame(frame));
         }
 
         av_packet_unref(ctx.packet);
@@ -382,8 +442,8 @@ namespace crop
         auto& src_ctx = get_context(src);
         auto src_stream = src_ctx.stream;
         
-        auto codec = avcodec_find_decoder(src_stream->codecpar->codec_id);
-        if (!codec)
+        auto src_codec = avcodec_find_decoder(src_stream->codecpar->codec_id);
+        if (!src_codec)
         {
             assert("*** avcodec_find_decoder ***" && false);
             return false;
@@ -401,7 +461,7 @@ namespace crop
 
         int w = (int)width;
         int h = (int)height;
-        auto fmt = AV_PIX_FMT_YUV420P;
+        auto fmt = src_ctx.codec_ctx->pix_fmt;
 
         ctx.frame = create_avframe(w, h, fmt);
         if (!ctx.frame)
@@ -423,7 +483,15 @@ namespace crop
             return false;
         }
 
-        ctx.codec_ctx = avcodec_alloc_context3(codec);
+        // Set up the output codec context
+        auto dst_codec = avcodec_find_encoder(src_ctx.codec_ctx->codec_id);
+        if (!dst_codec) 
+        {
+            assert("*** avcodec_find_encoder ***" && false);
+            return false;
+        }
+
+        ctx.codec_ctx = avcodec_alloc_context3(dst_codec);
         if (!ctx.codec_ctx)
         {
             assert("*** avcodec_alloc_context3 ***" && false);
@@ -431,14 +499,14 @@ namespace crop
             return false;
         }
         
-        ctx.codec_ctx->codec_id = codec->id;
-        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
+        ctx.codec_ctx->codec_id = src_codec->id;
+        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO; // ?
         ctx.codec_ctx->pix_fmt = src_ctx.codec_ctx->pix_fmt;
         ctx.codec_ctx->width = (int)width;
         ctx.codec_ctx->height = (int)height;
         ctx.codec_ctx->time_base = src_stream->time_base;
 
-        if (avcodec_open2(ctx.codec_ctx, codec, nullptr) != 0)
+        if (avcodec_open2(ctx.codec_ctx, dst_codec, nullptr) != 0)
         {
             assert("*** avcodec_open2 ***" && false);
             avformat_free_context(ctx.format_ctx);
@@ -454,7 +522,7 @@ namespace crop
             return false;
         }
 
-        if (avio_open(&ctx.format_ctx->pb, dst_path, AVIO_FLAG_WRITE) < 0)
+        if (!(ctx.format_ctx->oformat->flags & AVFMT_NOFILE) && avio_open(&ctx.format_ctx->pb, dst_path, AVIO_FLAG_WRITE) < 0)
         {
             assert("*** avio_open ***" && false);
             avformat_free_context(ctx.format_ctx);
@@ -473,39 +541,67 @@ namespace crop
         dst.frame_width = width;
         dst.frame_height = height;
 
+        if (!create_frame(ctx.frame_rgba, width, height))
+        {
+            avformat_free_context(ctx.format_ctx);
+            avcodec_free_context(&ctx.codec_ctx);
+            av_frame_free(&ctx.frame);
+            return false;
+        }
+
         return true;
     }
 
 
-    bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy)
+    bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy, FrameList const& src_out, FrameList const& dst_out)
     {
-        auto& src_ctx = get_context(src);        
+        auto& src_ctx = get_context(src);
+        auto& dst_ctx = get_context(dst);
 
         if (!read_next_frame(src_ctx))
         {
             // eof
-            
+            return false;
+        }
+        
+        convert_frame(src_ctx.frame, av_frame(src_ctx.frame_rgba));
+        for (auto& out : src_out)
+        {
+            convert_frame(src_ctx.frame, av_frame(out));
+        }
+
+        auto& src_rgba = src_ctx.frame_rgba.view;
+        auto& dst_rgba = dst_ctx.frame_rgba.view;
+
+        auto r = img::make_rect(crop_xy.x, crop_xy.y, dst_rgba.width, dst_rgba.height);
+        auto sub = img::sub_view(src_rgba, r);
+        img::copy(sub, dst_rgba);
+
+        auto crop_rgba = av_frame(dst_ctx.frame_rgba);
+        convert_frame(crop_rgba, dst_ctx.frame);
+        for (auto& out : dst_out)
+        {
+            convert_frame(crop_rgba, av_frame(out));
+        }
+
+        /*if (!write_frame(dst_ctx))
+        {
+            assert("*** write_frame ***" && false);
             return false;
         }
 
-        auto& dst_ctx = get_context(dst);
+        for (auto& frame : src_out)
+        {
+            auto av_frame = (AVFrame*)frame.frame_handle;
+            convert_frame(src_ctx.frame, av_frame);
+        }
 
-        auto w = (int)dst.frame_width;
-        auto h = (int)dst.frame_height;
-        auto x = (int)crop_xy.x;
-        auto y = (int)crop_xy.y;
-        crop_frame(src_ctx.frame, dst_ctx.frame, w, h, x, y);
-        
-        AVPacket out_packet;
-        av_init_packet(&out_packet);
-        out_packet.data = nullptr;
-        out_packet.size = 0;
+        for (auto& frame : dst_out)
+        {
+            auto av_frame = (AVFrame*)frame.frame_handle;
+            convert_frame(dst_ctx.frame, av_frame);
+        }*/
 
-        avcodec_send_frame(dst_ctx.codec_ctx, dst_ctx.frame);
-        avcodec_receive_packet(dst_ctx.codec_ctx, &out_packet);
-        av_write_frame(dst_ctx.format_ctx, &out_packet);
-
-        av_packet_unref(&out_packet);
         av_packet_unref(src_ctx.packet);
 
         return true;
@@ -521,9 +617,11 @@ namespace crop
 
         auto& ctx = get_context(video);
 
-        avformat_free_context(ctx.format_ctx);
+        avio_close(ctx.format_ctx->pb);
+        
         av_frame_free(&ctx.frame);
-        avcodec_close(ctx.codec_ctx);
+        avcodec_free_context(&ctx.codec_ctx);
+        avformat_free_context(ctx.format_ctx);
 
         mem::free(&ctx);
 
@@ -540,9 +638,7 @@ namespace crop
 
         auto& ctx = get_context(video);
 
-        av_write_trailer(ctx.format_ctx);
-        avio_close(ctx.format_ctx->pb);
-        
+        av_write_trailer(ctx.format_ctx); 
         close_video(video);
     }
 }
