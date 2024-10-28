@@ -15,7 +15,6 @@ namespace video
         u64 frame_handle = 0;
 
         img::ImageView view;
-
     };
 
 
@@ -29,6 +28,17 @@ namespace video
         u32 frame_height = 0;
 
         f64 fps = 0.0;
+    };
+
+
+    class VideoGen
+    {
+    public:
+
+        u64 video_handle = 0;
+
+        u32 frame_width = 0;
+        u32 frame_height = 0;
     };
 
 
@@ -52,10 +62,12 @@ namespace video
 
 namespace crop
 {
-    bool create_video(Video const& src, Video& dst, cstr dst_path, u32 width, u32 height);
+    bool create_video(Video const& src, VideoGen& dst, cstr dst_path, u32 width, u32 height);
 
-    bool next_frame(Video const& src, Video& dst, Point2Du32 crop_xy);
+    bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy);
 
-    void save_and_close_video(Video& video);
+    void close_video(VideoGen& video);
+
+    void save_and_close_video(VideoGen& video);
 }
 }

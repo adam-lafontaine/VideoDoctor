@@ -39,7 +39,7 @@ namespace video_display
     public:
 
         vid::Video video;
-        vid::Video crop_video;
+        vid::VideoGen crop_video;
 
         // load
         vid::FrameRGBA video_frame;
@@ -104,6 +104,15 @@ namespace internal
 
         assert(w && h && "*** Bad video dimensions ***");
 
+        u32 crop_w = 960;
+        u32 crop_h = 540;
+        cstr crop_path = "out.mp4";
+        ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
+        if (!ok)
+        {
+            return false;
+        }
+
         vid::destroy_frame(state.video_frame);
         vid::destroy_frame(state.filter_frame);
 
@@ -112,15 +121,6 @@ namespace internal
         {
             return false;
         }
-
-        u32 crop_w = 960;
-        u32 crop_h = 540;
-        cstr crop_path = "out.mp4";
-        ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
-        if (!ok)
-        {
-            return false;
-        }        
 
         return true;
     }
@@ -168,6 +168,8 @@ namespace internal
         auto& src = state.video_frame.view;
         auto& dst = state.filter_frame.view;
 
+        //img::copy(src, dst);
+
         auto f = [](img::Pixel p)
         {
             u8 r = p.red;
@@ -202,7 +204,7 @@ namespace internal
 
             vid::resize_frame(state.filter_frame, state.display_filter_frame);
 
-            cap_framerate(sw, target_ns);
+            //cap_framerate(sw, target_ns);
         }
 
         if (!not_eof)
@@ -346,7 +348,7 @@ namespace video_display
         vid::destroy_frame(state.filter_frame);
         vid::destroy_frame(state.display_filter_frame);
         vid::close_video(state.video);
-        vid::close_video(state.crop_video);
+        vid::crop::close_video(state.crop_video); //!
         mb::destroy_buffer(state.pixel_buffer);
     }
 
