@@ -177,40 +177,12 @@ namespace internal
     
     static void play_video(DisplayState& state)
     {
-        constexpr f64 NANO = 1'000'000'000;
-
-        auto target_ns = NANO / state.video.fps;
-
-        state.play_status = VPS::Play;
-        auto not_eof = true;
-
-        auto w = state.video.frame_width;
-        auto h = state.video.frame_height;
-
-        Point2Du32 crop_xy = { w / 4, h / 4 }; 
-
         vid::FrameList src_frames = { state.display_frame };
         vid::FrameList dst_frames = { state.display_filter_frame };
 
-        Stopwatch sw;
-        sw.start();
-        while (state.play_status == VPS::Play && not_eof)
-        {
-            //not_eof = vid::next_frame(state.video, frames);
-            not_eof = vid::crop::next_frame(state.video, state.crop_video, crop_xy, src_frames, dst_frames);
-
-            //process_frame(state);
-
-            //vid::resize_frame(state.filter_frame, state.display_filter_frame);
-
-            //cap_framerate(sw, target_ns);
-        }
-
-        if (!not_eof)
-        {
-            reset_video(state);
-            vid::crop::save_and_close_video(state.crop_video);
-        }
+        vid::crop::crop_video(state.video, state.crop_video, src_frames, dst_frames);
+        reset_video(state);
+        vid::crop::save_and_close_video(state.crop_video);
     }
 
 
@@ -225,7 +197,7 @@ namespace internal
 
         auto const play = [&]()
         {
-            play_video(state);
+            play_video(state);            
         };
 
         std::thread th(play);
