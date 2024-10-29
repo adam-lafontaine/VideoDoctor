@@ -104,8 +104,8 @@ namespace internal
 
         assert(w && h && "*** Bad video dimensions ***");
 
-        u32 crop_w = w; //w / 2;
-        u32 crop_h = h; // / 2;
+        u32 crop_w = w;// w / 2;
+        u32 crop_h = h;//h / 2;
         cstr crop_path = "/home/adam/Repos/VideoDoctor/crop/build/out.mp4";
         ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
         if (!ok)
@@ -154,26 +154,6 @@ namespace internal
         sw.start();
     }
 
-
-    /*static void process_frame(DisplayState& state)
-    {
-        auto& src = state.video_frame.view;
-        auto& dst = state.filter_frame.view;
-
-        //img::copy(src, dst);
-
-        auto f = [](img::Pixel p)
-        {
-            u8 r = p.red;
-            p.red = p.blue;
-            p.blue = r;
-
-            return p;
-        };
-
-        img::transform(src, dst, f);
-    }*/
-    
     
     static void play_video(DisplayState& state)
     {

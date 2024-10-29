@@ -38,11 +38,9 @@ namespace video
         AVStream* stream;
 
         AVFrame* frame_av;
-        AVPacket* packet;
 
         FrameRGBA frame_rgba;
-
-        int frame_pts = -1;
+        
 
         i64 packet_duration = -1;
     };
@@ -79,6 +77,18 @@ namespace video
             (AVPixelFormat)src->format,
 
             dst->width, dst->height, 
+            (AVPixelFormat)dst->format,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+    }
+
+
+    static SwsContext* create_sws(AVFrame* src, int src_w, int src_h, AVFrame* dst, int dst_w, int dst_h)
+    {
+        return sws_getContext(
+            src_w, src_h, 
+            (AVPixelFormat)src->format,
+
+            dst_w, dst_h, 
             (AVPixelFormat)dst->format,
             SWS_BILINEAR, nullptr, nullptr, nullptr);
     }
@@ -183,6 +193,7 @@ namespace video
         auto encoder = ctx.codec_ctx;
         auto frame = ctx.frame_av;
         auto duration = ctx.packet_duration;
+        auto stream = ctx.stream;
 
         // Set PTS (Presentation Time Stamp)
         frame->pts = pts;
@@ -199,17 +210,53 @@ namespace video
             AVPacket packet;
             av_init_packet(&packet);
             packet.data = nullptr;
-            packet.size = 0;
+            packet.size = 0;            
 
             while (avcodec_receive_packet(encoder, &packet) == 0) 
             {
-                packet.stream_index = ctx.stream->index;
+                packet.stream_index = stream->index;
                 packet.duration = duration;
+                // Rescale packet timestamps to output stream's time base
+                av_packet_rescale_ts(&packet, encoder->time_base, stream->time_base);
+
+                // Set DTS if needed (FFmpeg does this automatically in most cases)
+                if (packet.dts == AV_NOPTS_VALUE) {
+                    packet.dts = packet.pts;  // Simple assignment if no B-frames
+                }
                 av_interleaved_write_frame(ctx.format_ctx, &packet);
                 av_packet_unref(&packet);
             }
+        }       
+    }
+    
+    
+    static void flush_encoder(VideoGenContext& ctx)
+    {
+        auto encoder = ctx.codec_ctx;
+        auto duration = ctx.packet_duration;
+        auto stream = ctx.stream;
+
+        AVPacket packet;
+        av_init_packet(&packet);
+        packet.data = nullptr;
+        packet.size = 0;
+
+        // Flush the encoder
+        avcodec_send_frame(ctx.codec_ctx, nullptr);
+        while (avcodec_receive_packet(encoder, &packet) == 0) 
+        {
+            packet.stream_index = stream->index;
+            // Rescale packet timestamps to output stream's time base
+            av_packet_rescale_ts(&packet, encoder->time_base, stream->time_base);
+
+            // Set DTS if needed (FFmpeg does this automatically in most cases)
+            if (packet.dts == AV_NOPTS_VALUE) 
+            {
+                packet.dts = packet.pts;  // Simple assignment if no B-frames
+            }
+            av_interleaved_write_frame(ctx.format_ctx, &packet);
+            av_packet_unref(&packet);
         }
-       
     }
 
 
@@ -240,159 +287,77 @@ namespace video
 
     static void copy_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx)
     {
-        convert_frame(src_ctx.frame_av, dst_ctx.frame_av);
-        convert_frame(dst_ctx.frame_av, av_frame(dst_ctx.frame_rgba));
+        /*convert_frame(src_ctx.frame_av, dst_ctx.frame_av);
 
-        encode_frame(dst_ctx, src_ctx.frame_av->pts);        
+        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
+        convert_frame(dst_ctx.frame_av, av_frame(dst_ctx.frame_rgba));*/        
+
+        auto src_av = src_ctx.frame_av;
+        auto src_rgba = av_frame(src_ctx.frame_rgba);
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
+
+        convert_frame(src_av, src_rgba);
+        convert_frame(src_rgba, dst_rgba);
+        convert_frame(dst_rgba, dst_av);
+
+        encode_frame(dst_ctx, src_ctx.frame_av->pts);
     }
 
 
     static void crop_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx)
-    {
+    { 
+        auto decoder = src_ctx.codec_ctx;
         auto encoder = dst_ctx.codec_ctx;
-        auto frame = dst_ctx.frame_av;
-        auto tb = dst_ctx.stream->time_base.den / dst_ctx.stream->time_base.num;
-        auto fr = src_ctx.stream->avg_frame_rate.den / src_ctx.stream->avg_frame_rate.num;
-
-
-        // Set the source crop slice
-        u8* src_data[AV_NUM_DATA_POINTERS] = {nullptr};
-        int src_linesize[AV_NUM_DATA_POINTERS] = {0};
-
-        auto w = src_ctx.codec_ctx->width;
-        auto h = src_ctx.codec_ctx->height;
-        auto fmt = src_ctx.codec_ctx->pix_fmt;
-        auto crop_w = dst_ctx.codec_ctx->width;
-        auto crop_h = dst_ctx.codec_ctx->height;
+        auto w = decoder->width;
+        auto h = decoder->height;
+        auto crop_w = encoder->width;
+        auto crop_h = encoder->height;
 
         // TODO: detect crop position
         auto crop_x = w / 4;
         auto crop_y = h / 4;
 
-        av_image_fill_arrays(src_data, src_linesize, src_ctx.frame_av->data[0], fmt, w, h, 1);
+        auto dst_data = dst_ctx.frame_av->data;
+        auto dst_linesize = dst_ctx.frame_av->linesize;
 
-        // Adjust src_data pointers for cropping offsets
-        for (int i = 0; i < AV_NUM_DATA_POINTERS && src_ctx.frame_av->data[i]; i++) 
-        {
-            src_data[i] = src_ctx.frame_av->data[i] + crop_y * src_linesize[i] + crop_x * 4;
-        }
+        auto src_av = src_ctx.frame_av;
+        auto src_rgba = av_frame(src_ctx.frame_rgba);
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
 
-        // Initialize cropping context
-        auto sws = sws_getContext(crop_w, crop_h, fmt,  // Cropped input dimensions
-                                crop_w, crop_h, fmt,  // Target output dimensions
-                                SWS_BILINEAR, nullptr, nullptr, nullptr);
+        convert_frame(src_av, src_rgba);
 
-        // Crop using sws_scale by selecting a subsection of the frame data
-        sws_scale(sws, src_data, src_linesize, 0, crop_h, frame->data, frame->linesize);
+        #define USE_IMAGE
+
+        #ifndef USE_IMAGE
+
+        // Crop by setting src_data pointer for the RGBA frame
+        u8* crop_data[AV_NUM_DATA_POINTERS] = { src_rgba->data[0] + crop_y * src_rgba->linesize[0] + crop_x * 4 };
+        int crop_linesize[AV_NUM_DATA_POINTERS] = { src_rgba->linesize[0] };
+
+        // Convert cropped RGBA frame to YUV420P        
+        auto crop_sws = create_sws(src_rgba, crop_w, crop_h, dst_av, crop_w, crop_h);
+        sws_scale(crop_sws, crop_data, crop_linesize, 0, crop_h,
+                    dst_av->data, dst_av->linesize);                
+        sws_freeContext(crop_sws);
+
+        convert_frame(dst_av, dst_rgba);
+
+        #else
+
+        auto& src_view = src_ctx.frame_rgba.view;
+        auto& dst_view = dst_ctx.frame_rgba.view;
         
-        
+        auto sub = img::sub_view(src_view, img::make_rect(crop_x, crop_y, dst_view.width, dst_view.height));
+        img::copy(sub, dst_view);
+        convert_frame(dst_rgba, dst_av);
 
-        convert_frame(frame, av_frame(dst_ctx.frame_rgba));
+        #endif
 
-        /*convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-        auto& src_rgba = src_ctx.frame_rgba.view;
-        auto& dst_rgba = dst_ctx.frame_rgba.view;
-
-        
-
-        auto r = img::make_rect(crop_x, crop_y, dst_rgba.width, dst_rgba.height);
-        auto sub = img::sub_view(src_rgba, r);
-        img::copy(sub, dst_rgba);
-        auto crop_rgba = av_frame(dst_ctx.frame_rgba);
-        convert_frame(crop_rgba, dst_ctx.frame_av);*/
-
-        
-        
-
-        if (av_frame_make_writable(frame) < 0)
-        {
-            assert("*** av_frame_make_writable ***" && false);
-        }
-        
-
-        // Set PTS (Presentation Time Stamp)
-        frame->pts = src_ctx.frame_av->pts;
-        //dst_ctx.frame_av->pts
-
-        
-
-        // Send frame to encoder
-        if (avcodec_send_frame(encoder, frame) >= 0) 
-        {
-            // Receive packet from encoder and write it
-            AVPacket packet;
-            av_init_packet(&packet);
-            packet.data = nullptr;
-            packet.size = 0;
-
-            while (avcodec_receive_packet(encoder, &packet) == 0) 
-            {
-                packet.stream_index = dst_ctx.stream->index;
-                packet.duration = tb * fr;
-                av_interleaved_write_frame(dst_ctx.format_ctx, &packet);
-                av_packet_unref(&packet);
-            }
-        }
-
-        av_frame_unref(frame);
-
-        sws_freeContext(sws); // TODO: VideoGenContext
+        encode_frame(dst_ctx, src_av->pts);        
     }
-
-
     
-
-
-    static bool write_frame(VideoGenContext& ctx)
-    {
-        ++ctx.frame_pts;
-        ctx.frame_av->pts = ctx.frame_pts;
-
-        auto ret = avcodec_send_frame(ctx.codec_ctx, ctx.frame_av);
-        if (ret < 0)
-        {
-            assert("*** avcodec_send_frame ***" && false);
-            return false;
-        }
-
-        while (ret >= 0) 
-        {
-            ret = avcodec_receive_packet(ctx.codec_ctx, ctx.packet);
-            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) 
-            {
-                av_packet_unref(ctx.packet);
-                break; // No more packets available right now
-            } 
-            else if (ret < 0) 
-            {
-                assert("*** avcodec_receive_packet ***" && false);
-                return false;
-            }
-
-            ctx.packet->stream_index = ctx.stream->index;
-
-            // Write the encoded packet to file
-            //av_interleaved_write_frame(ctx.format_ctx, ctx.packet);
-            av_write_frame(ctx.format_ctx, ctx.packet);
-            av_packet_unref(ctx.packet);
-        }
-
-        return true;
-    }
-
-
-    static void flush_encoder(VideoGenContext& ctx)
-    {
-        // Flush the encoder
-        avcodec_send_frame(ctx.codec_ctx, nullptr);
-        while (avcodec_receive_packet(ctx.codec_ctx, ctx.packet) == 0) 
-        {
-            ctx.packet->stream_index = ctx.stream->index;
-            //av_interleaved_write_frame(ctx.format_ctx, ctx.packet);
-            av_write_frame(ctx.format_ctx, ctx.packet);
-            av_packet_unref(ctx.packet);
-        }
-    }
 }
 
 
@@ -412,6 +377,8 @@ namespace video
         {
             return false;
         }
+
+        av_frame_get_buffer(av_frame, 32);
 
         frame.frame_handle = (u64)av_frame;
 
@@ -749,15 +716,6 @@ namespace crop
             return false;
         }
 
-        ctx.packet = av_packet_alloc(); // TODO: delete?
-        if (!ctx.packet)
-        {
-            avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
-            av_frame_free(&ctx.frame_av);
-            return false;
-        }
-
         auto tb = ctx.stream->time_base.den / ctx.stream->time_base.num;
         auto fr = src_ctx.stream->avg_frame_rate.den / src_ctx.stream->avg_frame_rate.num;
 
@@ -790,58 +748,6 @@ namespace crop
     }
 
 
-    /*bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy, FrameList const& src_out, FrameList const& dst_out)
-    {
-        auto& src_ctx = get_context(src);
-        auto& dst_ctx = get_context(dst);
-
-        if (!read_next_frame(src_ctx))
-        {
-            // eof
-            return false;
-        }
-        
-        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-        auto& src_rgba = src_ctx.frame_rgba.view;
-        auto& dst_rgba = dst_ctx.frame_rgba.view;
-        auto r = img::make_rect(crop_xy.x, crop_xy.y, dst_rgba.width, dst_rgba.height);
-        auto sub = img::sub_view(src_rgba, r);
-        img::copy(sub, dst_rgba);
-        auto crop_rgba = av_frame(dst_ctx.frame_rgba);
-        convert_frame(crop_rgba, dst_ctx.frame_av);
-
-        for (auto& out : src_out)
-        {
-            convert_frame(src_ctx.frame_av, av_frame(out));
-        }
-        
-        for (auto& out : dst_out)
-        {
-            convert_frame(crop_rgba, av_frame(out));
-        }
-
-        if (!write_frame(dst_ctx))
-        {
-            assert("*** write_frame ***" && false);
-            return false;
-        }
-
-        for (auto& out : src_out)
-        {
-            convert_frame(src_ctx.frame_av, av_frame(out));
-        }
-
-        for (auto& out : dst_out)
-        {
-            convert_frame(dst_ctx.frame_av, av_frame(out));
-        }
-
-        av_packet_unref(src_ctx.packet);
-
-        return true;
-    }*/
-
-
     void close_video(VideoGen& video)
     {
         if (!video.video_handle)
@@ -854,7 +760,7 @@ namespace crop
         avio_closep(&ctx.format_ctx->pb);
         
         av_frame_free(&ctx.frame_av);
-        av_packet_free(&ctx.packet);
+        //av_packet_free(&ctx.packet);
         avcodec_free_context(&ctx.codec_ctx);
         avformat_free_context(ctx.format_ctx);
 

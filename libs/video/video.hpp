@@ -66,8 +66,6 @@ namespace crop
 
     void crop_video(Video const& src, VideoGen& dst, FrameList const& src_out, FrameList const& dst_out);
 
-    //bool next_frame(Video const& src, VideoGen& dst, Point2Du32 crop_xy, FrameList const& src_out, FrameList const& dst_out);
-
     void close_video(VideoGen& video);
 
     void save_and_close_video(VideoGen& video);
