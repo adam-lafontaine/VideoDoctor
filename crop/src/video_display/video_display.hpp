@@ -104,8 +104,8 @@ namespace internal
 
         assert(w && h && "*** Bad video dimensions ***");
 
-        u32 crop_w = w / 2;
-        u32 crop_h = h / 2;
+        u32 crop_w = w; //w / 2;
+        u32 crop_h = h; // / 2;
         cstr crop_path = "/home/adam/Repos/VideoDoctor/crop/build/out.mp4";
         ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
         if (!ok)

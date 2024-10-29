@@ -43,6 +43,8 @@ namespace video
         FrameRGBA frame_rgba;
 
         int frame_pts = -1;
+
+        i64 packet_duration = -1;
     };
 
 
@@ -176,63 +178,169 @@ namespace video
     }
 
 
+    static void encode_frame(VideoGenContext const& ctx, i64 pts)
+    {
+        auto encoder = ctx.codec_ctx;
+        auto frame = ctx.frame_av;
+        auto duration = ctx.packet_duration;
+
+        // Set PTS (Presentation Time Stamp)
+        frame->pts = pts;
+
+        if (av_frame_make_writable(frame) < 0)
+        {
+            assert("*** av_frame_make_writable ***" && false);
+        }
+
+        // Send frame to encoder
+        if (avcodec_send_frame(encoder, frame) >= 0) 
+        {
+            // Receive packet from encoder and write it
+            AVPacket packet;
+            av_init_packet(&packet);
+            packet.data = nullptr;
+            packet.size = 0;
+
+            while (avcodec_receive_packet(encoder, &packet) == 0) 
+            {
+                packet.stream_index = ctx.stream->index;
+                packet.duration = duration;
+                av_interleaved_write_frame(ctx.format_ctx, &packet);
+                av_packet_unref(&packet);
+            }
+        }
+       
+    }
+
+
     static void for_each_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx, std::function<void(VideoContext const&, VideoGenContext const&)> const& func)
     {
-        while (av_read_frame(src_ctx.format_ctx, src_ctx.packet) >= 0) 
+        auto packet = src_ctx.packet;
+        auto decoder = src_ctx.codec_ctx;
+        auto frame = src_ctx.frame_av;
+
+        while (av_read_frame(src_ctx.format_ctx, packet) >= 0) 
         {
-            if (src_ctx.packet->stream_index == src_ctx.stream->index) 
+            if (packet->stream_index == src_ctx.stream->index) 
             {
                 // Send packet to decoder
-                if (avcodec_send_packet(src_ctx.codec_ctx, src_ctx.packet) == 0) 
+                if (avcodec_send_packet(decoder, packet) == 0) 
                 {
                     // Receive frame from decoder
-                    while (avcodec_receive_frame(src_ctx.codec_ctx, src_ctx.frame_av) == 0) 
+                    while (avcodec_receive_frame(decoder, frame) == 0) 
                     {
-                        func(src_ctx, dst_ctx);
+                        func(src_ctx, dst_ctx);                        
                     }
                 }
             }
-            av_packet_unref(src_ctx.packet);
+            av_packet_unref(packet);
         }
+    }
+
+
+    static void copy_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx)
+    {
+        convert_frame(src_ctx.frame_av, dst_ctx.frame_av);
+        convert_frame(dst_ctx.frame_av, av_frame(dst_ctx.frame_rgba));
+
+        encode_frame(dst_ctx, src_ctx.frame_av->pts);        
     }
 
 
     static void crop_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx)
     {
-        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
+        auto encoder = dst_ctx.codec_ctx;
+        auto frame = dst_ctx.frame_av;
+        auto tb = dst_ctx.stream->time_base.den / dst_ctx.stream->time_base.num;
+        auto fr = src_ctx.stream->avg_frame_rate.den / src_ctx.stream->avg_frame_rate.num;
+
+
+        // Set the source crop slice
+        u8* src_data[AV_NUM_DATA_POINTERS] = {nullptr};
+        int src_linesize[AV_NUM_DATA_POINTERS] = {0};
+
+        auto w = src_ctx.codec_ctx->width;
+        auto h = src_ctx.codec_ctx->height;
+        auto fmt = src_ctx.codec_ctx->pix_fmt;
+        auto crop_w = dst_ctx.codec_ctx->width;
+        auto crop_h = dst_ctx.codec_ctx->height;
+
+        // TODO: detect crop position
+        auto crop_x = w / 4;
+        auto crop_y = h / 4;
+
+        av_image_fill_arrays(src_data, src_linesize, src_ctx.frame_av->data[0], fmt, w, h, 1);
+
+        // Adjust src_data pointers for cropping offsets
+        for (int i = 0; i < AV_NUM_DATA_POINTERS && src_ctx.frame_av->data[i]; i++) 
+        {
+            src_data[i] = src_ctx.frame_av->data[i] + crop_y * src_linesize[i] + crop_x * 4;
+        }
+
+        // Initialize cropping context
+        auto sws = sws_getContext(crop_w, crop_h, fmt,  // Cropped input dimensions
+                                crop_w, crop_h, fmt,  // Target output dimensions
+                                SWS_BILINEAR, nullptr, nullptr, nullptr);
+
+        // Crop using sws_scale by selecting a subsection of the frame data
+        sws_scale(sws, src_data, src_linesize, 0, crop_h, frame->data, frame->linesize);
+        
+        
+
+        convert_frame(frame, av_frame(dst_ctx.frame_rgba));
+
+        /*convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
         auto& src_rgba = src_ctx.frame_rgba.view;
         auto& dst_rgba = dst_ctx.frame_rgba.view;
 
-        // TODO: detect crop position
-        auto crop_x = src_rgba.width / 4;
-        auto crop_y = src_rgba.height / 4;
+        
 
         auto r = img::make_rect(crop_x, crop_y, dst_rgba.width, dst_rgba.height);
         auto sub = img::sub_view(src_rgba, r);
         img::copy(sub, dst_rgba);
         auto crop_rgba = av_frame(dst_ctx.frame_rgba);
-        convert_frame(crop_rgba, dst_ctx.frame_av);
+        convert_frame(crop_rgba, dst_ctx.frame_av);*/
+
+        
+        
+
+        if (av_frame_make_writable(frame) < 0)
+        {
+            assert("*** av_frame_make_writable ***" && false);
+        }
+        
 
         // Set PTS (Presentation Time Stamp)
-        dst_ctx.frame_av->pts = src_ctx.frame_av->pts;
+        frame->pts = src_ctx.frame_av->pts;
+        //dst_ctx.frame_av->pts
+
+        
 
         // Send frame to encoder
-        if (avcodec_send_frame(dst_ctx.codec_ctx, dst_ctx.frame_av) >= 0) 
+        if (avcodec_send_frame(encoder, frame) >= 0) 
         {
             // Receive packet from encoder and write it
-            AVPacket out_pkt;
-            av_init_packet(&out_pkt);
-            out_pkt.data = nullptr;
-            out_pkt.size = 0;
+            AVPacket packet;
+            av_init_packet(&packet);
+            packet.data = nullptr;
+            packet.size = 0;
 
-            while (avcodec_receive_packet(dst_ctx.codec_ctx, &out_pkt) == 0) 
+            while (avcodec_receive_packet(encoder, &packet) == 0) 
             {
-                out_pkt.stream_index = dst_ctx.stream->index;
-                av_interleaved_write_frame(dst_ctx.format_ctx, &out_pkt);
-                av_packet_unref(&out_pkt);
+                packet.stream_index = dst_ctx.stream->index;
+                packet.duration = tb * fr;
+                av_interleaved_write_frame(dst_ctx.format_ctx, &packet);
+                av_packet_unref(&packet);
             }
         }
+
+        av_frame_unref(frame);
+
+        sws_freeContext(sws); // TODO: VideoGenContext
     }
+
+
+    
 
 
     static bool write_frame(VideoGenContext& ctx)
@@ -541,13 +649,6 @@ namespace crop
         int h = (int)height;
         auto fmt = (int)src_ctx.codec_ctx->pix_fmt;
 
-        /*ctx.frame_av = create_avframe(w, h, fmt);
-        if (!ctx.frame_av)
-        {
-            assert("*** create_avframe ***" && false);
-            return false;
-        }*/
-
         ctx.frame_av = av_frame_alloc();
         if (!ctx.frame_av)
         {
@@ -562,12 +663,6 @@ namespace crop
         if (av_frame_get_buffer(ctx.frame_av, 32) < 0)
         {
             assert("*** av_frame_get_buffer ***" && false);
-            return false;
-        }
-
-        if (av_frame_make_writable(ctx.frame_av) < 0)
-        {
-            assert("*** av_frame_make_writable ***" && false);
             return false;
         }
         
@@ -654,7 +749,7 @@ namespace crop
             return false;
         }
 
-        ctx.packet = av_packet_alloc();
+        ctx.packet = av_packet_alloc(); // TODO: delete?
         if (!ctx.packet)
         {
             avformat_free_context(ctx.format_ctx);
@@ -662,6 +757,11 @@ namespace crop
             av_frame_free(&ctx.frame_av);
             return false;
         }
+
+        auto tb = ctx.stream->time_base.den / ctx.stream->time_base.num;
+        auto fr = src_ctx.stream->avg_frame_rate.den / src_ctx.stream->avg_frame_rate.num;
+
+        ctx.packet_duration = tb * fr;
 
         return true;
     }
@@ -671,7 +771,8 @@ namespace crop
     {
         auto const crop = [&](auto const& src_ctx, auto const& dst_ctx)
         {            
-            crop_frame(src_ctx, dst_ctx);
+            //crop_frame(src_ctx, dst_ctx);
+            copy_frame(src_ctx, dst_ctx);
 
             for (auto& out : src_out)
             {
