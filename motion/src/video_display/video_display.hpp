@@ -54,27 +54,34 @@ namespace video_display
     {
     public:
 
-        vid::VideoReader video;
-        vid::VideoWriter crop_video;
+        vid::VideoReader src_video;
+        vid::VideoWriter dst_video;
+        
+        img::GrayView edges_view;
 
-        // load
-        vid::FrameRGBA display_frame;
-        ImTextureID display_texture;
-
-        // init
+        vid::FrameRGBA gray_frame;
+        vid::FrameRGBA edges_frame;
+        
+        vid::FrameRGBA display_src_frame;
+        vid::FrameRGBA display_gray_frame;
+        vid::FrameRGBA display_edges_frame;
         vid::FrameRGBA display_preview_frame;
+
+        ImTextureID display_src_texture;
+        ImTextureID display_gray_texture;
+        ImTextureID display_edges_texture;        
         ImTextureID display_preview_texture;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
 
-        fs::path video_filepath;
+        fs::path src_video_filepath;
 
         ImGui::FileBrowser fb_video;
 
 
 
-        img::Buffer32 pixel_buffer;
+        img::Buffer8 u8_buffer;
     };
 }
 
@@ -93,13 +100,13 @@ namespace internal
     {
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
-        vid::close_video(state.video);        
+        vid::close_video(state.src_video);        
     }
     
     
     static bool load_video(DisplayState& state)
     {
-        auto path = state.video_filepath;
+        auto path = state.src_video_filepath;
         if (!fs::exists(path) || !fs::is_regular_file(path))
         {
             assert("*** bad video path ***" && false);
@@ -108,9 +115,9 @@ namespace internal
 
         reset_video(state);
 
-        auto& video = state.video;
+        auto& video = state.src_video;
 
-        auto ok = vid::open_video(video, state.video_filepath.string().c_str());
+        auto ok = vid::open_video(video, state.src_video_filepath.string().c_str());
         if (!ok)
         {
             assert("*** vid::open_video ***" && false);
@@ -127,7 +134,7 @@ namespace internal
         u32 crop_w = DST_VIDEO_WIDTH;
         u32 crop_h = DST_VIDEO_HEIGHT;
         cstr crop_path = OUT_VIDEO_PATH;
-        ok = vid::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
+        ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
         if (!ok)
         {
             assert("*** vid::create_video ***" && false);
@@ -174,19 +181,30 @@ namespace internal
         sw.start();
     }
 
-    
-    static void play_video(DisplayState& state)
+
+    static void copy_gray(img::GrayView const& src, img::ImageView const& dst)
     {
-        vid::FrameList src_frames = { state.display_frame };
+        img::fill(dst, img::to_pixel(0, 100, 100));
+    }
+
+    
+    static void process_video(DisplayState& state)
+    {
+        vid::FrameList src_frames = { state.display_src_frame };
         vid::FrameList dst_frames = { state.display_preview_frame };
 
-        vid::crop_video(state.video, state.crop_video, src_frames, dst_frames);
+        auto& src = state.src_video;
+        auto& dst = state.dst_video;
+
+
+
+        vid::process_video(src, dst, copy_gray, src_frames, dst_frames);
         reset_video(state);
-        vid::save_and_close_video(state.crop_video);
+        vid::save_and_close_video(dst);
     }
 
 
-    static void play_video_async(DisplayState& state)
+    static void process_video_async(DisplayState& state)
     {
         using VPS = VideoPlayStatus;
 
@@ -198,7 +216,7 @@ namespace internal
         auto const play = [&]()
         {
             state.play_status = VPS::Play;
-            play_video(state);
+            process_video(state);
             state.play_status = VPS::Pause;
         };
 
@@ -226,9 +244,9 @@ namespace video_display
         using VLS = VideoLoadStatus;
         using VPS = VideoPlayStatus;
 
-        auto view = state.display_frame.view;
+        auto view = state.display_src_frame.view;
         auto dims = ImVec2(view.width, view.height);
-        auto texture = state.display_texture;
+        auto texture = state.display_src_texture;
 
         auto open_disabled = state.play_status == VPS::Play;
         auto load_disabled = state.load_status != VLS::NotLoaded;
@@ -247,7 +265,7 @@ namespace video_display
         if (open_disabled) { ImGui::EndDisabled(); }
 
         ImGui::SameLine();
-        ImGui::Text("file: %s", state.video_filepath.string().c_str());
+        ImGui::Text("file: %s", state.src_video_filepath.string().c_str());
 
         if (load_disabled) { ImGui::BeginDisabled(); }
         
@@ -275,7 +293,7 @@ namespace video_display
         
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
-        ImGui::Text("%ux%u %3.1f fps", state.video.frame_width, state.video.frame_height, state.video.fps);
+        ImGui::Text("%ux%u %3.1f fps", state.src_video.frame_width, state.src_video.frame_height, state.src_video.fps);
        
         ImGui::End();
         
@@ -284,7 +302,7 @@ namespace video_display
         {
             internal::reset_video(state);
 
-            state.video_filepath = state.fb_video.GetSelected();
+            state.src_video_filepath = state.fb_video.GetSelected();
             state.fb_video.ClearSelected();
         }
     }
@@ -310,13 +328,13 @@ namespace video_display
     inline void destroy(DisplayState& state)
     {
         internal::pause_video(state);
-        //vid::destroy_frame(state.video_frame);
-        vid::destroy_frame(state.display_frame);
+        //vid::destroy_frame(state.src_video_frame);
+        vid::destroy_frame(state.display_src_frame);
         //vid::destroy_frame(state.filter_frame);
         vid::destroy_frame(state.display_preview_frame);
-        vid::close_video(state.video);
-        vid::close_video(state.crop_video); //!
-        mb::destroy_buffer(state.pixel_buffer);
+        vid::close_video(state.src_video);
+        vid::close_video(state.dst_video); //!
+        mb::destroy_buffer(state.u8_buffer);
     }
 
 
@@ -325,12 +343,28 @@ namespace video_display
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;
 
-        if (!vid::create_frame(state.display_frame, display_w, display_h))
+        u32 src_w = SRC_VIDEO_WIDTH;
+        u32 src_h = SRC_VIDEO_HEIGHT;
+
+        auto n_u8_pixels = 2 * src_w * src_h;
+
+        state.u8_buffer = img::create_buffer8(n_u8_pixels, "u8_buffer");
+        if (!state.u8_buffer.ok)
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_src_frame, display_w, display_h))
         {
             return false;
         }
 
         if (!vid::create_frame(state.display_preview_frame, display_w, display_h))
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_edges_frame, display_w, display_h))
         {
             return false;
         }
