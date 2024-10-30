@@ -106,6 +106,25 @@ namespace image
             span::fill_32(row_span(view, y), color);
         }
     }
+
+
+    void fill(GrayView const& view, u8 value)
+    {
+        assert(view.matrix_data_);
+
+        span::fill_8(to_span(view), value);
+    }
+
+
+    void fill(GraySubView const& view, u8 value)
+    {
+        assert(view.matrix_data_);
+
+        for (u32 y = 0; y < view.height; y++)
+        {
+            span::fill_8(row_span(view, y), value);
+        }
+    }
 }
 
 
@@ -317,5 +336,110 @@ namespace image
                 rd[xd] = (u8)gray;
             }
         }
+    }
+}
+
+
+/* convolve */
+
+namespace image
+{
+    static constexpr f32 GRAD_X_5X5[25] = 
+    {
+          0.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+        -0.08f, -0.12f, 0.0f, 0.12f, 0.08f
+		-0.24f, -0.36f, 0.0f, 0.36f, 0.24f
+		-0.08f, -0.12f, 0.0f, 0.12f, 0.08f,
+          0.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+    };
+
+
+    static constexpr f32 GRAD_Y_5X5[25] = 
+    {
+        0.0f, -0.08f, -0.24f, -0.08f, 0.0f,
+		0.0f, -0.12f, -0.36f, -0.12f, 0.0f,
+		0.0f,   0.0f,   0.0f,   0.0f, 0.0f,
+		0.0f,  0.12f,  0.36f,  0.12f, 0.0f,
+		0.0f,  0.08f,  0.24f,  0.08f, 0.0f,
+    };
+    
+
+	static inline f32 gradient_at_xy_f32(GraySubView const& view, u32 x, u32 y)
+    {
+		constexpr i32 k_width = 5;
+		constexpr i32 k_height = 5;
+
+        auto kernel_x = GRAD_X_5X5;
+        auto kernel_y = GRAD_Y_5X5;
+
+        f32 grad_x = 0.0f;
+        f32 grad_y = 0.0f;
+        u32 w = 0;
+
+        i32 rx = (i32)x - (k_width / 2);
+        i32 ry = (i32)y - (k_height / 2);
+
+        for (i32 v = 0; v < k_height; ++v)
+        {
+            auto s = row_begin(view, ry + v);
+            for (i32 u = 0; u < k_width; ++u)
+            {
+                auto p = s[rx + u];
+
+                grad_x += p * kernel_x[w];
+                grad_y += p * kernel_y[w];
+                ++w;
+            }
+        }
+
+        return num::q_hypot(grad_x, grad_y);
+    }
+}
+
+
+/* gradients */
+
+namespace image
+{
+    void gradients(GrayView const& src, GrayView const& dst)
+    {
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
+
+        // for 5x5 kernel = 5 / 2;
+        constexpr u32 kd = 5 / 2;
+
+        Rect2Du32 r{};
+        r.x_begin = kd;
+        r.x_end = src.width - kd;
+        r.y_begin = kd;
+        r.y_end = src.height - kd;
+
+        auto sub_src = sub_view(src, r);
+        auto sub_dst = sub_view(dst, r);
+
+        auto w = sub_dst.width;
+        auto h = sub_dst.height;
+
+        for (u32 y = 0; y < h; y++)
+        {
+            auto d = row_begin(sub_dst, y);
+            for (u32 x = 0; x < w; x++)
+            {
+                d[x] = (u8)gradient_at_xy_f32(sub_src, x, y);
+            }
+        }
+
+        /*auto top = make_rect(0, 0, dst.width, kd);
+        auto bottom = make_rect(0, r.y_end, dst.width, kd);
+        auto left = make_rect(0, kd, kd, h);
+        auto right = make_rect(r.x_end, kd, kd, h);
+
+        fill(sub_view(dst, top), 0);
+        fill(sub_view(dst, bottom), 0);
+        fill(sub_view(dst, left), 0);
+        fill(sub_view(dst, right), 0);*/        
     }
 }

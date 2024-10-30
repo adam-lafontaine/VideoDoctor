@@ -172,6 +172,13 @@ namespace image
     {
         return view.matrix_data_ + (u64)(view.y_begin + y) * view.matrix_width + view.x_begin;
     }
+
+
+    template <typename T>
+    static inline T* row_begin(MatrixSubView2D<T> const& view, i32 y)
+    {
+        return view.matrix_data_ + (i64)((i32)view.y_begin + y) * view.matrix_width + view.x_begin;
+    }
 }
 
 
@@ -325,6 +332,10 @@ namespace image
     void fill(ImageView const& view, Pixel color);
 
     void fill(SubView const& view, Pixel color);
+
+    void fill(GrayView const& view, u8 value);
+
+    void fill(GraySubView const& view, u8 value);
 }
 
 
@@ -365,4 +376,12 @@ namespace image
     void scale_down(ImageView const& src, ImageView const& dst, u32 scale);
 
     void scale_down(GrayView const& src, GrayView const& dst, u32 scale);
+}
+
+
+/* gradients */
+
+namespace image
+{
+    void gradients(GrayView const& src, GrayView const& dst);
 }

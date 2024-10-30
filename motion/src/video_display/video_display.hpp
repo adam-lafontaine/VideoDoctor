@@ -133,6 +133,9 @@ namespace video_display
             return false;
         }
 
+        mb::zero_buffer(state.buffer32);
+        mb::zero_buffer(state.buffer8);
+
         state.display_gray_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
 
@@ -260,10 +263,11 @@ namespace internal
         constexpr auto scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
 
         img::scale_down(src_gray, state.gray_view, scale);
-
         img::map(state.gray_view, state.display_gray_view);
+
+        img::gradients(state.gray_view, state.edges_view);
+        img::map(state.edges_view, state.display_edges_view);
         
-        img::fill(state.display_edges_view, img::to_pixel(0, 100, 0));
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
