@@ -38,7 +38,7 @@ namespace video_display
     {
     public:
 
-        vid::Video video;
+        vid::VideoReader video;
 
         vid::FrameRGBA display_frame;
         ImTextureID display_frame_texture;

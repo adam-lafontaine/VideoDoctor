@@ -190,14 +190,22 @@ namespace image
         assert(src.width == dst.width);
         assert(src.height == dst.height);
 
+        auto len = src.width * src.height;
+        assert(len % 8 == 0);
+
         auto s = to_span(src).data;
         auto d = to_span(dst).data;
 
-        auto len = src.width * src.height;
-
-        for (u32 i = 0; i < len; i++)
+        for (u32 i = 0; i < len; i += 8) // TODO: span::transform
         {
             d[i] = func(s[i]);
+            d[i + 1] = func(s[i + 1]);
+            d[i + 2] = func(s[i + 2]);
+            d[i + 3] = func(s[i + 3]);
+            d[i + 4] = func(s[i + 4]);
+            d[i + 5] = func(s[i + 5]);
+            d[i + 6] = func(s[i + 6]);
+            d[i + 7] = func(s[i + 7]);
         }
     }
 }
