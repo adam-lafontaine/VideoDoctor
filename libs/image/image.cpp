@@ -224,3 +224,98 @@ namespace image
         span::transform(to_span(src), to_span(dst), func);
     }
 }
+
+
+namespace image
+{
+    void scale_down(ImageView const& src, ImageView const& dst, u32 scale)
+    {
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        f32 const i_scale = 1.0f / (scale * scale);
+
+        f32 red = 0.0f;
+        f32 green = 0.0f;
+        f32 blue = 0.0f;
+        f32 alpha = 0.0f;
+
+        for (u32 yd = 0; yd < dst.height; yd++)
+        {
+            auto ys = scale * yd;
+
+            auto rd = row_begin(dst, yd);
+
+            for (u32 xd = 0; xd < dst.width; xd++)
+            {
+                auto xs = scale * xd;
+
+                red   = 0.0f;
+                green = 0.0f;
+                blue  = 0.0f;
+                alpha = 0.0f;
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rs = row_begin(src, ys + v) + xs;
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        auto s = rs[u];
+                        red   += i_scale * s.red;
+                        green += i_scale * s.green;
+                        blue  += i_scale * s.blue;
+                        alpha += i_scale * s.alpha;
+                    }
+                }
+
+                auto& d = rd[xd];
+                d.red   = (u8)red;
+                d.green = (u8)green;
+                d.blue  = (u8)blue;
+                d.alpha = (u8)alpha;
+            }
+        }
+    }
+
+
+    void scale_down(GrayView const& src, GrayView const& dst, u32 scale)
+    {
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        f32 const i_scale = 1.0f / (scale * scale);
+
+        f32 gray = 0.0f;
+
+        for (u32 yd = 0; yd < dst.height; yd++)
+        {
+            auto ys = scale * yd;
+
+            auto rd = row_begin(dst, yd);
+
+            for (u32 xd = 0; xd < dst.width; xd++)
+            {
+                auto xs = scale * xd;
+
+                gray = 0.0f;
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rs = row_begin(src, ys + v) + xs;
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        gray += i_scale * rs[u];
+                    }
+                }
+
+                rd[xd] = (u8)gray;
+            }
+        }
+    }
+}

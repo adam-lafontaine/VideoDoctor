@@ -57,10 +57,10 @@ static void init_textures()
 {
     textures = ogl::create_textures<N_TEXTURES>();
 
-    init_texture(vd_state.display_src_frame.view,     video_src_texture_id);
-    init_texture(vd_state.display_preview_frame.view, video_preview_texture_id);
-    init_texture(vd_state.display_gray_frame.view,    video_gray_texture_id);
-    init_texture(vd_state.display_edges_frame.view,   video_edges_texture_id);
+    init_texture(vd_state.display_src_view,     video_src_texture_id);
+    init_texture(vd_state.display_preview_view, video_preview_texture_id);
+    init_texture(vd_state.display_gray_view,    video_gray_texture_id);
+    init_texture(vd_state.display_edges_view,   video_edges_texture_id);
 
     vd_state.display_src_texture     = textures.get_imgui_texture(video_src_texture_id);
     vd_state.display_preview_texture = textures.get_imgui_texture(video_preview_texture_id);

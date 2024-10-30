@@ -56,16 +56,17 @@ namespace video_display
 
         vid::VideoReader src_video;
         vid::VideoWriter dst_video;
-        
-        img::GrayView edges_view;
 
-        vid::FrameRGBA gray_frame;
-        vid::FrameRGBA edges_frame;
+        img::GrayView gray_view;        
+        img::GrayView edges_view;
         
         vid::FrameRGBA display_src_frame;
-        vid::FrameRGBA display_gray_frame;
-        vid::FrameRGBA display_edges_frame;
         vid::FrameRGBA display_preview_frame;
+
+        img::ImageView display_src_view;
+        img::ImageView display_gray_view;
+        img::ImageView display_edges_view;
+        img::ImageView display_preview_view;        
 
         ImTextureID display_src_texture;
         ImTextureID display_gray_texture;
@@ -79,9 +80,8 @@ namespace video_display
 
         ImGui::FileBrowser fb_video;
 
-
-
-        img::Buffer8 u8_buffer;
+        img::Buffer32 buffer32;
+        img::Buffer8 buffer8;
     };
 }
 
@@ -89,18 +89,14 @@ namespace video_display
 namespace video_display
 {    
     inline void destroy(DisplayState& state)
-    {        
-        vid::destroy_frame(state.gray_frame);
-        vid::destroy_frame(state.edges_frame);
-
+    { 
         vid::destroy_frame(state.display_src_frame);
-        vid::destroy_frame(state.display_gray_frame);
-        vid::destroy_frame(state.display_edges_frame);        
         vid::destroy_frame(state.display_preview_frame);
 
         vid::close_video(state.src_video);
         vid::close_video(state.dst_video); //!
-        mb::destroy_buffer(state.u8_buffer);
+        mb::destroy_buffer(state.buffer32);
+        mb::destroy_buffer(state.buffer8);
     }
 
 
@@ -108,17 +104,6 @@ namespace video_display
     {
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;
-
-        u32 src_w = SRC_VIDEO_WIDTH;
-        u32 src_h = SRC_VIDEO_HEIGHT;
-
-        auto n_u8_pixels = 2 * src_w * src_h;
-
-        state.u8_buffer = img::create_buffer8(n_u8_pixels, "u8_buffer");
-        if (!state.u8_buffer.ok)
-        {
-            return false;
-        }
 
         if (!vid::create_frame(state.display_src_frame, display_w, display_h))
         {
@@ -130,15 +115,29 @@ namespace video_display
             return false;
         }
 
-        if (!vid::create_frame(state.display_gray_frame, display_w, display_h))
+        state.display_src_view = state.display_src_frame.view;
+        state.display_preview_view = state.display_preview_frame.view;
+
+        auto n_pixels32 = display_w * display_h * 2;
+        auto n_pixels8 = display_w * display_h * 2;
+
+        state.buffer32 = img::create_buffer32(n_pixels32, "buffer32");
+        if (!state.buffer32.ok)
         {
             return false;
         }
 
-        if (!vid::create_frame(state.display_edges_frame, display_w, display_h))
+        state.buffer8 = img::create_buffer8(n_pixels8, "buffer8");
+        if (!state.buffer8.ok)
         {
             return false;
         }
+
+        state.display_gray_view = img::make_view(display_w, display_h, state.buffer32);
+        state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
+
+        state.gray_view = img::make_view(display_w, display_h, state.buffer8);
+        state.edges_view = img::make_view(display_w, display_h, state.buffer8);
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
@@ -165,9 +164,6 @@ namespace internal
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
         vid::close_video(state.src_video);
-
-        vid::destroy_frame(state.gray_frame);
-        vid::destroy_frame(state.edges_frame);
     }
     
     
@@ -207,18 +203,6 @@ namespace internal
             assert("*** vid::create_video ***" && false);
             return false;
         }
-
-        if (!vid::create_frame(state.gray_frame, w, h))
-        {
-            assert("*** vid::create_frame ***" && false);
-            return false;
-        }
-
-        /*if (!vid::create_frame(state.edges_frame, w, h))
-        {
-            assert("*** vid::create_frame ***" && false);
-            return false;
-        }*/
 
         return true;
     }
@@ -263,8 +247,8 @@ namespace internal
 
     static void fill_all(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
-        img::fill(state.display_gray_frame.view, img::to_pixel(100, 0, 0));
-        img::fill(state.display_edges_frame.view, img::to_pixel(0, 100, 0));
+        img::fill(state.display_gray_view, img::to_pixel(100, 0, 0));
+        img::fill(state.display_edges_view, img::to_pixel(0, 100, 0));
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
@@ -273,10 +257,13 @@ namespace internal
     {
         auto src_gray = vid::frame_gray_view(state.src_video);
 
-        img::map(src_gray, state.gray_frame.view);
-        vid::resize_frame(state.gray_frame, state.display_gray_frame);
+        constexpr auto scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
+
+        img::scale_down(src_gray, state.gray_view, scale);
+
+        img::map(state.gray_view, state.display_gray_view);
         
-        img::fill(state.display_edges_frame.view, img::to_pixel(0, 100, 0));
+        img::fill(state.display_edges_view, img::to_pixel(0, 100, 0));
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
@@ -421,7 +408,7 @@ namespace video_display
 
     void video_gray_window(DisplayState& state)
     {
-        auto view = state.display_gray_frame.view;
+        auto view = state.display_gray_view;
         auto dims = ImVec2(view.width, view.height);
         auto texture = state.display_gray_texture;
 
@@ -440,7 +427,7 @@ namespace video_display
 
     void video_edges_window(DisplayState& state)
     {
-        auto view = state.display_edges_frame.view;
+        auto view = state.display_edges_view;
         auto dims = ImVec2(view.width, view.height);
         auto texture = state.display_edges_texture;
 
