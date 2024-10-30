@@ -155,6 +155,8 @@ static void render_imgui_frame()
 
     vd::video_frame_window(vd_state);
     vd::video_preview_window(vd_state);
+    vd::video_gray_window(vd_state);
+    vd::video_edges_window(vd_state);
 
     ui::render(ui_state);
 }

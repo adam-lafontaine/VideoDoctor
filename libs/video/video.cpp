@@ -856,6 +856,7 @@ namespace video
         auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
         {
             cb(src_view, dst_view);
+            
             for (auto& out : src_out)
             {
                 convert_frame(src_ctx.frame_av, av_frame(out));

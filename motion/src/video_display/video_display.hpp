@@ -182,9 +182,11 @@ namespace internal
     }
 
 
-    static void copy_gray(img::GrayView const& src, img::ImageView const& dst)
+    static void fill_all(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
-        img::fill(dst, img::to_pixel(0, 100, 100));
+        img::fill(state.display_gray_frame.view, img::to_pixel(100, 0, 0));
+        img::fill(state.display_edges_frame.view, img::to_pixel(0, 100, 0));
+        img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
     
@@ -193,12 +195,15 @@ namespace internal
         vid::FrameList src_frames = { state.display_src_frame };
         vid::FrameList dst_frames = { state.display_preview_frame };
 
+        auto const proc = [&](auto const& vs, auto const& vd)
+        {
+            fill_all(state, vs, vd);
+        };
+
         auto& src = state.src_video;
         auto& dst = state.dst_video;
 
-
-
-        vid::process_video(src, dst, copy_gray, src_frames, dst_frames);
+        vid::process_video(src, dst, proc, src_frames, dst_frames);
         reset_video(state);
         vid::save_and_close_video(dst);
     }
@@ -287,13 +292,17 @@ namespace video_display
             ImGui::SameLine();
             if (ImGui::Button("Play"))
             {
-                internal::play_video_async(state);
+                internal::process_video_async(state);
             }
         }
         
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
-        ImGui::Text("%ux%u %3.1f fps", state.src_video.frame_width, state.src_video.frame_height, state.src_video.fps);
+        auto src_w = state.src_video.frame_width;
+        auto src_h = state.src_video.frame_height;
+        auto src_fps = state.src_video.fps;
+
+        ImGui::Text("%ux%u %3.1f fps", src_w, src_h, src_fps);
        
         ImGui::End();
         
@@ -317,6 +326,49 @@ namespace video_display
         ImGui::Begin("Preview");
 
         ImGui::Image(texture, dims);
+
+        auto w = state.dst_video.frame_width;
+        auto h = state.dst_video.frame_height;
+
+        ImGui::Text("%ux%u", w, h);
+
+        ImGui::End();
+    }
+
+
+    void video_gray_window(DisplayState& state)
+    {
+        auto view = state.display_gray_frame.view;
+        auto dims = ImVec2(view.width, view.height);
+        auto texture = state.display_gray_texture;
+
+        ImGui::Begin("Gray");
+
+        ImGui::Image(texture, dims);
+
+        auto w = state.dst_video.frame_width;
+        auto h = state.dst_video.frame_height;
+
+        ImGui::Text("%ux%u", w, h);
+
+        ImGui::End();
+    }
+
+
+    void video_edges_window(DisplayState& state)
+    {
+        auto view = state.display_edges_frame.view;
+        auto dims = ImVec2(view.width, view.height);
+        auto texture = state.display_edges_texture;
+
+        ImGui::Begin("Edges");
+
+        ImGui::Image(texture, dims);
+
+        auto w = state.dst_video.frame_width;
+        auto h = state.dst_video.frame_height;
+
+        ImGui::Text("%ux%u", w, h);
 
         ImGui::End();
     }
@@ -360,6 +412,11 @@ namespace video_display
         }
 
         if (!vid::create_frame(state.display_preview_frame, display_w, display_h))
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_gray_frame, display_w, display_h))
         {
             return false;
         }
