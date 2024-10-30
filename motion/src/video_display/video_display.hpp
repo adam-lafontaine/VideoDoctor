@@ -16,6 +16,22 @@ namespace video_display
     namespace img = image;
     namespace vid = video;
 
+    // 4K video
+    constexpr u32 SRC_VIDEO_WIDTH = 3840;
+    constexpr u32 SRC_VIDEO_HEIGHT = 2160;
+
+    // 1080p video
+    constexpr u32 DST_VIDEO_WIDTH = SRC_VIDEO_WIDTH / 2;
+    constexpr u32 DST_VIDEO_HEIGHT = SRC_VIDEO_HEIGHT / 2;
+
+    // display/preview    
+    constexpr u32 DISPLAY_FRAME_HEIGHT = 360;
+    constexpr u32 DISPLAY_FRAME_WIDTH = DISPLAY_FRAME_HEIGHT * SRC_VIDEO_WIDTH / SRC_VIDEO_HEIGHT;
+
+    constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
+    constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/motion/build/out.mp4";
+
+
 
     enum class VideoLoadStatus : u8
     {
@@ -46,8 +62,8 @@ namespace video_display
         ImTextureID display_texture;
 
         // init
-        vid::FrameRGBA display_filter_frame;
-        ImTextureID display_filter_texture;
+        vid::FrameRGBA display_preview_frame;
+        ImTextureID display_preview_texture;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
@@ -92,21 +108,25 @@ namespace internal
 
         reset_video(state);
 
-        auto ok = vid::open_video(state.video, state.video_filepath.string().c_str());
+        auto& video = state.video;
+
+        auto ok = vid::open_video(video, state.video_filepath.string().c_str());
         if (!ok)
         {
             assert("*** vid::open_video ***" && false);
             return false;
         }
 
-        auto w = state.video.frame_width;
-        auto h = state.video.frame_height;
+        auto w = video.frame_width;
+        auto h = video.frame_height;
 
-        assert(w && h && "*** Bad video dimensions ***");
+        assert(w && h && "*** No video dimensions ***");
+        assert(w == SRC_VIDEO_WIDTH);
+        assert(h == SRC_VIDEO_HEIGHT);
 
-        u32 crop_w = w / 2;
-        u32 crop_h = h / 2;
-        cstr crop_path = "/home/adam/Repos/VideoDoctor/crop/build/out.mp4";
+        u32 crop_w = DST_VIDEO_WIDTH;
+        u32 crop_h = DST_VIDEO_HEIGHT;
+        cstr crop_path = OUT_VIDEO_PATH;
         ok = vid::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
         if (!ok)
         {
@@ -158,7 +178,7 @@ namespace internal
     static void play_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_frame };
-        vid::FrameList dst_frames = { state.display_filter_frame };
+        vid::FrameList dst_frames = { state.display_preview_frame };
 
         vid::crop_video(state.video, state.crop_video, src_frames, dst_frames);
         reset_video(state);
@@ -270,13 +290,13 @@ namespace video_display
     }
 
 
-    void video_filter_window(DisplayState& state)
+    void video_preview_window(DisplayState& state)
     {
-        auto view = state.display_filter_frame.view;
+        auto view = state.display_preview_frame.view;
         auto dims = ImVec2(view.width, view.height);
-        auto texture = state.display_filter_texture;
+        auto texture = state.display_preview_texture;
 
-        ImGui::Begin("Filter");
+        ImGui::Begin("Preview");
 
         ImGui::Image(texture, dims);
 
@@ -293,7 +313,7 @@ namespace video_display
         //vid::destroy_frame(state.video_frame);
         vid::destroy_frame(state.display_frame);
         //vid::destroy_frame(state.filter_frame);
-        vid::destroy_frame(state.display_filter_frame);
+        vid::destroy_frame(state.display_preview_frame);
         vid::close_video(state.video);
         vid::close_video(state.crop_video); //!
         mb::destroy_buffer(state.pixel_buffer);
@@ -302,15 +322,15 @@ namespace video_display
 
     inline bool init(DisplayState& state)
     {
-        u32 display_w = 640;
-        u32 display_h = 360;
+        u32 display_w = DISPLAY_FRAME_WIDTH;
+        u32 display_h = DISPLAY_FRAME_HEIGHT;
 
         if (!vid::create_frame(state.display_frame, display_w, display_h))
         {
             return false;
         }
 
-        if (!vid::create_frame(state.display_filter_frame, display_w, display_h))
+        if (!vid::create_frame(state.display_preview_frame, display_w, display_h))
         {
             return false;
         }
@@ -318,7 +338,7 @@ namespace video_display
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
         fb.SetTypeFilters({".mp4"});
-        fb.SetDirectory(fs::path("/"));
+        fb.SetDirectory(fs::path(SRC_VIDEO_DIR));
 
         return true;
     }    

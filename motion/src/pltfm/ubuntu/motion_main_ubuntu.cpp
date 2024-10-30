@@ -23,7 +23,7 @@ namespace
     ogl::TextureList<N_TEXTURES> textures;
 
     constexpr ogl::TextureId video_display_texture_id = { 0 };
-    constexpr ogl::TextureId video_filter_texture_id = { 1 };
+    constexpr ogl::TextureId video_preview_texture_id = { 1 };
 }
 
 
@@ -36,6 +36,37 @@ static void end_program()
 static bool is_running()
 {
     return run_state != RunState::End;
+}
+
+
+static void init_texture(image::ImageView const& src, ogl::TextureId dst_id)
+{
+    auto& dst = textures.get_ogl_texture(dst_id);
+
+    auto data = src.matrix_data_;
+    auto w = (int)src.width;
+    auto h = (int)src.height;
+
+    ogl::init_texture(data, w, h, dst);
+}
+
+
+static void init_textures()
+{
+    textures = ogl::create_textures<N_TEXTURES>();
+
+    init_texture(vd_state.display_frame.view, video_display_texture_id);
+    init_texture(vd_state.display_preview_frame.view, video_preview_texture_id);
+
+    vd_state.display_texture = textures.get_imgui_texture(video_display_texture_id);
+    vd_state.display_preview_texture = textures.get_imgui_texture(video_preview_texture_id);
+}
+
+
+static void render_textures()
+{
+    ogl::render_texture(textures.get_ogl_texture(video_display_texture_id));
+    ogl::render_texture(textures.get_ogl_texture(video_preview_texture_id));
 }
 
 
@@ -106,13 +137,6 @@ static void process_user_input()
 }
 
 
-static void render_textures()
-{
-    ogl::render_texture(textures.get_ogl_texture(video_display_texture_id));
-    ogl::render_texture(textures.get_ogl_texture(video_filter_texture_id));
-}
-
-
 static void render_imgui_frame()
 {
     ui::new_frame();
@@ -122,21 +146,9 @@ static void render_imgui_frame()
 #endif
 
     vd::video_frame_window(vd_state);
-    vd::video_filter_window(vd_state);
+    vd::video_preview_window(vd_state);
 
     ui::render(ui_state);
-}
-
-
-static void init_texture(image::ImageView const& src, ogl::TextureId dst_id)
-{
-    auto& dst = textures.get_ogl_texture(dst_id);
-
-    auto data = src.matrix_data_;
-    auto w = (int)src.width;
-    auto h = (int)src.height;
-
-    ogl::init_texture(data, w, h, dst);
 }
 
 
@@ -156,13 +168,7 @@ static bool main_init()
         return false;
     }
 
-    textures = ogl::create_textures<N_TEXTURES>();
-
-    init_texture(vd_state.display_frame.view, video_display_texture_id);
-    init_texture(vd_state.display_filter_frame.view, video_filter_texture_id);
-
-    vd_state.display_texture = textures.get_imgui_texture(video_display_texture_id);
-    vd_state.display_filter_texture = textures.get_imgui_texture(video_filter_texture_id);
+    init_textures();
 
     return true;
 }
