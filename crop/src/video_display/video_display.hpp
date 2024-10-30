@@ -104,8 +104,8 @@ namespace internal
 
         assert(w && h && "*** Bad video dimensions ***");
 
-        u32 crop_w = w;// w / 2;
-        u32 crop_h = h;//h / 2;
+        u32 crop_w = w / 2;
+        u32 crop_h = h / 2;
         cstr crop_path = "/home/adam/Repos/VideoDoctor/crop/build/out.mp4";
         ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
         if (!ok)
@@ -177,7 +177,9 @@ namespace internal
 
         auto const play = [&]()
         {
-            play_video(state);            
+            state.play_status = VPS::Play;
+            play_video(state);
+            state.play_status = VPS::Pause;
         };
 
         std::thread th(play);
@@ -250,14 +252,7 @@ namespace video_display
                 internal::play_video_async(state);
             }
         }
-        else if (state.play_status == VPS::Play)
-        {
-            ImGui::SameLine();
-            if (ImGui::Button("Pause"))
-            {
-                internal::pause_video(state);
-            }
-        }
+        
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
         ImGui::Text("%ux%u %3.1f fps", state.video.frame_width, state.video.frame_height, state.video.fps);
