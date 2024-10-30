@@ -190,22 +190,37 @@ namespace image
         assert(src.width == dst.width);
         assert(src.height == dst.height);
 
-        auto len = src.width * src.height;
-        assert(len % 8 == 0);
+        span::transform(to_span(src), to_span(dst), func);
+    }
+}
 
-        auto s = to_span(src).data;
-        auto d = to_span(dst).data;
 
-        for (u32 i = 0; i < len; i += 8) // TODO: span::transform
+/* map */
+
+namespace image
+{
+    void map(GrayView const& src, ImageView const& dst)
+    {
+        assert(src.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.matrix_data_);
+        assert(dst.width);
+        assert(dst.height);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
+
+        fn<Pixel(u8)> func = [](u8 sp)
         {
-            d[i] = func(s[i]);
-            d[i + 1] = func(s[i + 1]);
-            d[i + 2] = func(s[i + 2]);
-            d[i + 3] = func(s[i + 3]);
-            d[i + 4] = func(s[i + 4]);
-            d[i + 5] = func(s[i + 5]);
-            d[i + 6] = func(s[i + 6]);
-            d[i + 7] = func(s[i + 7]);
-        }
+            Pixel p{};
+            p.red = sp;
+            p.green = sp;
+            p.blue = sp;
+            p.alpha = 255;
+
+            return p;
+        };
+
+        span::transform(to_span(src), to_span(dst), func);
     }
 }

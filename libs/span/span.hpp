@@ -3,6 +3,11 @@
 #include "../util/memory_buffer.hpp"
 #include "../util/stack_buffer.hpp"
 
+#include <functional>
+
+template <class F>
+using fn = std::function<F>;
+
 //#define SPAN_STRING
 
 
@@ -280,3 +285,33 @@ namespace span
 }
 
 #endif // SPAN_STRING
+
+
+/* transform */
+
+namespace span
+{
+    template <typename S, typename D>
+    inline void transform(SpanView<S> const& src, SpanView<D> const& dst, fn<D(S)> const& func)
+    {
+        auto len = src.length;
+        constexpr auto N = 8;
+
+        assert(len % N == 0);
+
+        auto s = src.data;
+        auto d = dst.data;
+
+        for (u32 i = 0; i < len; i += N)
+        {
+            d[i] = func(s[i]);
+            d[i + 1] = func(s[i + 1]);
+            d[i + 2] = func(s[i + 2]);
+            d[i + 3] = func(s[i + 3]);
+            d[i + 4] = func(s[i + 4]);
+            d[i + 5] = func(s[i + 5]);
+            d[i + 6] = func(s[i + 6]);
+            d[i + 7] = func(s[i + 7]);
+        }
+    }
+}

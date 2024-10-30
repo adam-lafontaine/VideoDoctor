@@ -86,6 +86,70 @@ namespace video_display
 }
 
 
+namespace video_display
+{    
+    inline void destroy(DisplayState& state)
+    {        
+        vid::destroy_frame(state.gray_frame);
+        vid::destroy_frame(state.edges_frame);
+
+        vid::destroy_frame(state.display_src_frame);
+        vid::destroy_frame(state.display_gray_frame);
+        vid::destroy_frame(state.display_edges_frame);        
+        vid::destroy_frame(state.display_preview_frame);
+
+        vid::close_video(state.src_video);
+        vid::close_video(state.dst_video); //!
+        mb::destroy_buffer(state.u8_buffer);
+    }
+
+
+    inline bool init(DisplayState& state)
+    {
+        u32 display_w = DISPLAY_FRAME_WIDTH;
+        u32 display_h = DISPLAY_FRAME_HEIGHT;
+
+        u32 src_w = SRC_VIDEO_WIDTH;
+        u32 src_h = SRC_VIDEO_HEIGHT;
+
+        auto n_u8_pixels = 2 * src_w * src_h;
+
+        state.u8_buffer = img::create_buffer8(n_u8_pixels, "u8_buffer");
+        if (!state.u8_buffer.ok)
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_src_frame, display_w, display_h))
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_preview_frame, display_w, display_h))
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_gray_frame, display_w, display_h))
+        {
+            return false;
+        }
+
+        if (!vid::create_frame(state.display_edges_frame, display_w, display_h))
+        {
+            return false;
+        }
+
+        auto& fb = state.fb_video;
+        fb.SetTitle("Video Select");
+        fb.SetTypeFilters({".mp4"});
+        fb.SetDirectory(fs::path(SRC_VIDEO_DIR));
+
+        return true;
+    }    
+}
+
+
 /* internal */
 
 namespace video_display
@@ -100,7 +164,10 @@ namespace internal
     {
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
-        vid::close_video(state.src_video);        
+        vid::close_video(state.src_video);
+
+        vid::destroy_frame(state.gray_frame);
+        vid::destroy_frame(state.edges_frame);
     }
     
     
@@ -140,6 +207,18 @@ namespace internal
             assert("*** vid::create_video ***" && false);
             return false;
         }
+
+        if (!vid::create_frame(state.gray_frame, w, h))
+        {
+            assert("*** vid::create_frame ***" && false);
+            return false;
+        }
+
+        /*if (!vid::create_frame(state.edges_frame, w, h))
+        {
+            assert("*** vid::create_frame ***" && false);
+            return false;
+        }*/
 
         return true;
     }
@@ -189,6 +268,18 @@ namespace internal
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
+
+    static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
+    {
+        auto src_gray = vid::frame_gray_view(state.src_video);
+
+        img::map(src_gray, state.gray_frame.view);
+        vid::resize_frame(state.gray_frame, state.display_gray_frame);
+        
+        img::fill(state.display_edges_frame.view, img::to_pixel(0, 100, 0));
+        img::fill(dst, img::to_pixel(0, 0, 100));
+    }
+
     
     static void process_video(DisplayState& state)
     {
@@ -197,7 +288,7 @@ namespace internal
 
         auto const proc = [&](auto const& vs, auto const& vd)
         {
-            fill_all(state, vs, vd);
+            process_frame(state, vs, vd);
         };
 
         auto& src = state.src_video;
@@ -227,14 +318,6 @@ namespace internal
 
         std::thread th(play);
         th.detach();
-    }
-
-
-    static void pause_video(DisplayState& state)
-    {
-        using VPS = VideoPlayStatus;
-
-        state.play_status = VPS::Pause;
     }
 }
 }
@@ -372,65 +455,4 @@ namespace video_display
 
         ImGui::End();
     }
-}
-
-
-namespace video_display
-{    
-    inline void destroy(DisplayState& state)
-    {
-        internal::pause_video(state);
-        //vid::destroy_frame(state.src_video_frame);
-        vid::destroy_frame(state.display_src_frame);
-        //vid::destroy_frame(state.filter_frame);
-        vid::destroy_frame(state.display_preview_frame);
-        vid::close_video(state.src_video);
-        vid::close_video(state.dst_video); //!
-        mb::destroy_buffer(state.u8_buffer);
-    }
-
-
-    inline bool init(DisplayState& state)
-    {
-        u32 display_w = DISPLAY_FRAME_WIDTH;
-        u32 display_h = DISPLAY_FRAME_HEIGHT;
-
-        u32 src_w = SRC_VIDEO_WIDTH;
-        u32 src_h = SRC_VIDEO_HEIGHT;
-
-        auto n_u8_pixels = 2 * src_w * src_h;
-
-        state.u8_buffer = img::create_buffer8(n_u8_pixels, "u8_buffer");
-        if (!state.u8_buffer.ok)
-        {
-            return false;
-        }
-
-        if (!vid::create_frame(state.display_src_frame, display_w, display_h))
-        {
-            return false;
-        }
-
-        if (!vid::create_frame(state.display_preview_frame, display_w, display_h))
-        {
-            return false;
-        }
-
-        if (!vid::create_frame(state.display_gray_frame, display_w, display_h))
-        {
-            return false;
-        }
-
-        if (!vid::create_frame(state.display_edges_frame, display_w, display_h))
-        {
-            return false;
-        }
-
-        auto& fb = state.fb_video;
-        fb.SetTitle("Video Select");
-        fb.SetTypeFilters({".mp4"});
-        fb.SetDirectory(fs::path(SRC_VIDEO_DIR));
-
-        return true;
-    }    
 }

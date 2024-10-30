@@ -2,13 +2,7 @@
 
 #include "../span/span.hpp"
 
-#include <functional>
-
 namespace mb = memory_buffer;
-
-template <class F>
-using fn = std::function<F>;
-
 
 /*  image basic */
 
@@ -353,4 +347,12 @@ namespace image
 namespace image
 {
     void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func);
+}
+
+
+/* map */
+
+namespace image
+{
+    void map(GrayView const& src, ImageView const& dst);
 }
