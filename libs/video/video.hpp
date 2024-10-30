@@ -18,7 +18,7 @@ namespace video
     };
 
 
-    class Video
+    class VideoReader
     {
     public:
 
@@ -31,7 +31,7 @@ namespace video
     };
 
 
-    class VideoGen
+    class VideoWriter
     {
     public:
 
@@ -49,25 +49,25 @@ namespace video
 
     void destroy_frame(FrameRGBA& frame);
 
-    bool open_video(Video& video, cstr filepath);
+    bool open_video(VideoReader& video, cstr filepath);
 
-    void close_video(Video& video);
+    void close_video(VideoReader& video);
 
-    bool next_frame(Video const& video, FrameRGBA const& frame_out);
+    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out);
 
-    bool next_frame(Video const& video, FrameList const& frames_out);
+    bool next_frame(VideoReader const& video, FrameList const& frames_out);
 
     void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
 
 
 namespace crop
 {
-    bool create_video(Video const& src, VideoGen& dst, cstr dst_path, u32 width, u32 height);
+    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height);
 
-    void crop_video(Video const& src, VideoGen& dst, FrameList const& src_out, FrameList const& dst_out);
+    void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out);
 
-    void close_video(VideoGen& video);
+    void close_video(VideoWriter& video);
 
-    void save_and_close_video(VideoGen& video);
+    void save_and_close_video(VideoWriter& video);
 }
 }

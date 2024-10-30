@@ -38,8 +38,8 @@ namespace video_display
     {
     public:
 
-        vid::Video video;
-        vid::VideoGen crop_video;
+        vid::VideoReader video;
+        vid::VideoWriter crop_video;
 
         // load
         vid::FrameRGBA display_frame;

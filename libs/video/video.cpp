@@ -16,7 +16,7 @@ extern "C" {
 
 namespace video
 {
-    class VideoContext
+    class VideoReaderContext
     {
     public:
         AVFormatContext* format_ctx;
@@ -30,7 +30,7 @@ namespace video
     };
 
 
-    class VideoGenContext
+    class VideoWriterContext
     {
     public:
         AVFormatContext* format_ctx;
@@ -46,15 +46,15 @@ namespace video
     };
 
 
-    static VideoContext& get_context(Video video)
+    static VideoReaderContext& get_context(VideoReader video)
     {
-        return *(VideoContext*)(video.video_handle);
+        return *(VideoReaderContext*)(video.video_handle);
     }
 
 
-    static VideoGenContext& get_context(VideoGen video)
+    static VideoWriterContext& get_context(VideoWriter video)
     {
-        return *(VideoGenContext*)(video.video_handle);
+        return *(VideoWriterContext*)(video.video_handle);
     }
 
 
@@ -128,13 +128,13 @@ namespace video
     }
 
 
-    static bool read_next_frame(VideoContext const& ctx)
+    static bool read_next_frame(VideoReaderContext const& ctx)
     {
         auto packet = ctx.packet;
         auto decoder = ctx.codec_ctx;
         auto frame = ctx.frame_av;
         auto stream = ctx.stream;
-        
+
         for (;;)
         {
             if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
@@ -172,7 +172,7 @@ namespace video
     }
     
 
-    static void for_each_frame(VideoContext const& ctx, std::function<void(VideoContext const&)> const& func)
+    static void for_each_frame(VideoReaderContext const& ctx, std::function<void(VideoReaderContext const&)> const& func)
     {
         auto packet = ctx.packet;
         auto decoder = ctx.codec_ctx;
@@ -198,7 +198,7 @@ namespace video
     }
 
 
-    static void for_each_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx, std::function<void(VideoContext const&, VideoGenContext const&)> const& func)
+    static void for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, std::function<void(VideoReaderContext const&, VideoWriterContext const&)> const& func)
     {
         auto packet = src_ctx.packet;
         auto decoder = src_ctx.codec_ctx;
@@ -224,7 +224,7 @@ namespace video
     }
 
 
-    static void encode_frame(VideoGenContext const& ctx, i64 pts)
+    static void encode_frame(VideoWriterContext const& ctx, i64 pts)
     {
         auto encoder = ctx.codec_ctx;
         auto frame = ctx.frame_av;
@@ -266,7 +266,7 @@ namespace video
     }
     
     
-    static void flush_encoder(VideoGenContext& ctx)
+    static void flush_encoder(VideoWriterContext& ctx)
     {
         auto encoder = ctx.codec_ctx;
         auto duration = ctx.packet_duration;
@@ -296,7 +296,7 @@ namespace video
     }
 
 
-    static void copy_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx)
+    static void copy_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx)
     {
         auto src_av = src_ctx.frame_av;
         auto src_rgba = av_frame(src_ctx.frame_rgba);
@@ -311,7 +311,7 @@ namespace video
     }
 
 
-    static void crop_frame(VideoContext const& src_ctx, VideoGenContext const& dst_ctx)
+    static void crop_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx)
     { 
         auto decoder = src_ctx.codec_ctx;
         auto encoder = dst_ctx.codec_ctx;
@@ -421,9 +421,9 @@ namespace video
     }
 
 
-    bool open_video(Video& video, cstr filepath)
+    bool open_video(VideoReader& video, cstr filepath)
     {
-        auto data = mem::malloc<VideoContext>("video context");
+        auto data = mem::malloc<VideoReaderContext>("video context");
         if (!data)
         {
             return false;
@@ -530,7 +530,7 @@ namespace video
     }
 
 
-    void close_video(Video& video)
+    void close_video(VideoReader& video)
     {
         if (!video.video_handle)
         {
@@ -550,7 +550,7 @@ namespace video
     }
 
 
-    bool next_frame(Video const& video, FrameRGBA const& frame_out)
+    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out)
     {
         auto& ctx = get_context(video);        
 
@@ -568,7 +568,7 @@ namespace video
     }
 
 
-    bool next_frame(Video const& video, FrameList const& frames_out)
+    bool next_frame(VideoReader const& video, FrameList const& frames_out)
     {
         auto& ctx = get_context(video);        
 
@@ -606,7 +606,7 @@ namespace video
 {
 namespace crop
 {
-    bool create_video(Video const& src, VideoGen& dst, cstr dst_path, u32 width, u32 height)
+    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height)
     {
         auto& src_ctx = get_context(src);
         auto src_stream = src_ctx.stream;
@@ -618,7 +618,7 @@ namespace crop
             return false;
         }
 
-        auto data = mem::malloc<VideoGenContext>("video gen context");
+        auto data = mem::malloc<VideoWriterContext>("video gen context");
         if (!data)
         {
             return false;
@@ -741,7 +741,7 @@ namespace crop
     }
 
 
-    void crop_video(Video const& src, VideoGen& dst, FrameList const& src_out, FrameList const& dst_out)
+    void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out)
     {
         auto const crop = [&](auto const& src_ctx, auto const& dst_ctx)
         {            
@@ -763,7 +763,7 @@ namespace crop
     }
 
 
-    void close_video(VideoGen& video)
+    void close_video(VideoWriter& video)
     {
         if (!video.video_handle)
         {
@@ -785,7 +785,7 @@ namespace crop
     }
 
 
-    void save_and_close_video(VideoGen& video)
+    void save_and_close_video(VideoWriter& video)
     {
         if (!video.video_handle)
         {
