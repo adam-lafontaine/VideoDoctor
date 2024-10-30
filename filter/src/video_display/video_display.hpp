@@ -38,7 +38,7 @@ namespace video_display
     {
     public:
 
-        vid::Video video;
+        vid::VideoReader video;
 
         // load
         vid::FrameRGBA video_frame;
