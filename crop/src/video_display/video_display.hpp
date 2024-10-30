@@ -160,7 +160,7 @@ namespace internal
         vid::FrameList src_frames = { state.display_frame };
         vid::FrameList dst_frames = { state.display_filter_frame };
 
-        vid_video(state.video, state.crop_video, src_frames, dst_frames);
+        vid::crop_video(state.video, state.crop_video, src_frames, dst_frames);
         reset_video(state);
         vid::save_and_close_video(state.crop_video);
     }

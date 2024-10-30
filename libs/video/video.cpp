@@ -405,6 +405,15 @@ namespace video
     }
 
 
+    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst)
+    {
+        auto av_src = (AVFrame*)src.frame_handle;
+        auto av_dst = (AVFrame*)dst.frame_handle;
+
+        convert_frame(av_src, av_dst);
+    }
+
+
     void destroy_frame(FrameRGBA& frame)
     {
         if (!frame.frame_handle)
@@ -549,6 +558,20 @@ namespace video
     }
 
 
+    void play_video(VideoReader const& video, FrameList const& frames_out)
+    {
+        auto const copy = [&](auto const& src_ctx)
+        {
+            for (auto& out : frames_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(get_context(video), copy);
+    }
+
+
     bool next_frame(VideoReader const& video, FrameRGBA const& frame_out)
     {
         auto& ctx = get_context(video);        
@@ -586,15 +609,6 @@ namespace video
         av_packet_unref(ctx.packet);
 
         return true;
-    }
-
-
-    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst)
-    {
-        auto av_src = (AVFrame*)src.frame_handle;
-        auto av_dst = (AVFrame*)dst.frame_handle;
-
-        convert_frame(av_src, av_dst);
     }
 
 
