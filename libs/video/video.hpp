@@ -58,10 +58,7 @@ namespace video
     bool next_frame(VideoReader const& video, FrameList const& frames_out);
 
     void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
-
-
-namespace crop
-{
+    
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height);
 
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out);
@@ -69,5 +66,4 @@ namespace crop
     void close_video(VideoWriter& video);
 
     void save_and_close_video(VideoWriter& video);
-}
 }

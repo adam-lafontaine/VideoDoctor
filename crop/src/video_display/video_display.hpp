@@ -107,10 +107,10 @@ namespace internal
         u32 crop_w = w / 2;
         u32 crop_h = h / 2;
         cstr crop_path = "/home/adam/Repos/VideoDoctor/crop/build/out.mp4";
-        ok = vid::crop::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
+        ok = vid::create_video(state.video, state.crop_video, crop_path, crop_w, crop_h);
         if (!ok)
         {
-            assert("*** vid::crop::create_video ***" && false);
+            assert("*** vid::create_video ***" && false);
             return false;
         }
 
@@ -160,9 +160,9 @@ namespace internal
         vid::FrameList src_frames = { state.display_frame };
         vid::FrameList dst_frames = { state.display_filter_frame };
 
-        vid::crop::crop_video(state.video, state.crop_video, src_frames, dst_frames);
+        vid_video(state.video, state.crop_video, src_frames, dst_frames);
         reset_video(state);
-        vid::crop::save_and_close_video(state.crop_video);
+        vid::save_and_close_video(state.crop_video);
     }
 
 
@@ -295,7 +295,7 @@ namespace video_display
         //vid::destroy_frame(state.filter_frame);
         vid::destroy_frame(state.display_filter_frame);
         vid::close_video(state.video);
-        vid::crop::close_video(state.crop_video); //!
+        vid::close_video(state.crop_video); //!
         mb::destroy_buffer(state.pixel_buffer);
     }
 

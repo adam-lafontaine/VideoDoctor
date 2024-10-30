@@ -40,7 +40,6 @@ namespace video
         AVFrame* frame_av;
 
         FrameRGBA frame_rgba;
-        
 
         i64 packet_duration = -1;
     };
@@ -597,15 +596,8 @@ namespace video
 
         convert_frame(av_src, av_dst);
     }
-}
 
 
-/* crop video */
-
-namespace video
-{
-namespace crop
-{
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height)
     {
         auto& src_ctx = get_context(src);
@@ -803,5 +795,4 @@ namespace crop
 
     
     
-}
 }
