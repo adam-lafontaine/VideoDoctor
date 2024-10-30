@@ -214,41 +214,12 @@ namespace image
 }
 
 
-/* map */
-
-namespace image
-{
-    void map(GrayView const& src, ImageView const& dst)
-    {
-        assert(src.matrix_data_);
-        assert(src.width);
-        assert(src.height);
-        assert(dst.matrix_data_);
-        assert(dst.width);
-        assert(dst.height);
-        assert(src.width == dst.width);
-        assert(src.height == dst.height);
-
-        fn<Pixel(u8)> func = [](u8 sp)
-        {
-            Pixel p{};
-            p.red = sp;
-            p.green = sp;
-            p.blue = sp;
-            p.alpha = 255;
-
-            return p;
-        };
-
-        span::transform(to_span(src), to_span(dst), func);
-    }
-}
-
-
 namespace image
 {
     void scale_down(ImageView const& src, ImageView const& dst, u32 scale)
     {
+        scale = scale ? scale : src.width / dst.width;
+
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
         assert(src.width == scale * dst.width);
@@ -290,11 +261,7 @@ namespace image
                     }
                 }
 
-                auto& d = rd[xd];
-                d.red   = (u8)red;
-                d.green = (u8)green;
-                d.blue  = (u8)blue;
-                d.alpha = (u8)alpha;
+                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue, (u8)alpha);
             }
         }
     }
@@ -302,6 +269,8 @@ namespace image
 
     void scale_down(GrayView const& src, GrayView const& dst, u32 scale)
     {
+        scale = scale ? scale : src.width / dst.width;
+
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
         assert(src.width == scale * dst.width);
@@ -334,6 +303,133 @@ namespace image
                 }
 
                 rd[xd] = (u8)gray;
+            }
+        }
+    }
+
+
+    void scale_up(ImageView const& src, ImageView const& dst, u32 scale)
+    {
+        scale = scale ? scale : dst.width / src.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width * scale);
+        assert(dst.height == src.height * scale);
+        assert(scale > 1);
+
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {
+                auto xd = scale * xs;
+
+                auto p = rs[xs];
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rd = row_begin(dst, yd + v) + xd;
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[u] = p;
+                    }
+                }
+            }
+        }
+    }
+
+
+    void scale_up(GrayView const& src, GrayView const& dst, u32 scale)
+    {
+        scale = scale ? scale : dst.width / src.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width * scale);
+        assert(dst.height == src.height * scale);
+        assert(scale > 1);
+
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {
+                auto xd = scale * xs;
+
+                auto p = rs[xs];
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rd = row_begin(dst, yd + v) + xd;
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[u] = p;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/* map */
+
+namespace image
+{
+    void map(GrayView const& src, ImageView const& dst)
+    {
+        assert(src.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.matrix_data_);
+        assert(dst.width);
+        assert(dst.height);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
+
+        fn<Pixel(u8)> func = [](u8 sp)
+        {
+            return to_pixel(sp);
+        };
+
+        span::transform(to_span(src), to_span(dst), func);
+    }
+
+
+    void map_scale_up(GrayView const& src, ImageView const& dst, u32 scale)
+    {
+        scale = scale ? scale : dst.width / src.width;
+        
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width * scale);
+        assert(dst.height == src.height * scale);
+        assert(scale > 1);
+
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {
+                auto xd = scale * xs;
+                
+                auto p = to_pixel(rs[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rd = row_begin(dst, yd + v) + xd;
+                    for (u32 u = 0; u < scale; u++)
+                    {                        
+                        rd[u] = p;
+                    }
+                }
             }
         }
     }

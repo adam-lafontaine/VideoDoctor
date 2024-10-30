@@ -361,21 +361,27 @@ namespace image
 }
 
 
+/* resize */
+
+namespace image
+{
+    void scale_down(ImageView const& src, ImageView const& dst, u32 scale = 0);
+
+    void scale_down(GrayView const& src, GrayView const& dst, u32 scale = 0);
+
+    void scale_up(ImageView const& src, ImageView const& dst, u32 scale = 0);
+
+    void scale_up(GrayView const& src, GrayView const& dst, u32 scale = 0);
+}
+
+
 /* map */
 
 namespace image
 {
     void map(GrayView const& src, ImageView const& dst);
-}
 
-
-/* resize */
-
-namespace image
-{
-    void scale_down(ImageView const& src, ImageView const& dst, u32 scale);
-
-    void scale_down(GrayView const& src, GrayView const& dst, u32 scale);
+    void map_scale_up(GrayView const& src, ImageView const& dst, u32 scale = 0);
 }
 
 

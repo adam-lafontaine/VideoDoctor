@@ -28,6 +28,10 @@ namespace video_display
     constexpr u32 DISPLAY_FRAME_HEIGHT = 360;
     constexpr u32 DISPLAY_FRAME_WIDTH = DISPLAY_FRAME_HEIGHT * SRC_VIDEO_WIDTH / SRC_VIDEO_HEIGHT;
 
+    // image processing
+    constexpr u32 PROC_IMAGE_WIDTH = DISPLAY_FRAME_WIDTH / 2;
+    constexpr u32 PROC_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
+
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/motion/build/out.mp4";
 
@@ -57,8 +61,8 @@ namespace video_display
         vid::VideoReader src_video;
         vid::VideoWriter dst_video;
 
-        img::GrayView gray_view;        
-        img::GrayView edges_view;
+        img::GrayView proc_gray_view;        
+        img::GrayView proc_edges_view;
         
         vid::FrameRGBA display_src_frame;
         vid::FrameRGBA display_preview_frame;
@@ -105,6 +109,9 @@ namespace video_display
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;
 
+        u32 process_w = PROC_IMAGE_WIDTH;
+        u32 process_h = PROC_IMAGE_HEIGHT;
+
         if (!vid::create_frame(state.display_src_frame, display_w, display_h))
         {
             return false;
@@ -119,7 +126,7 @@ namespace video_display
         state.display_preview_view = state.display_preview_frame.view;
 
         auto n_pixels32 = display_w * display_h * 2;
-        auto n_pixels8 = display_w * display_h * 2;
+        auto n_pixels8 = process_w * process_h * 2;
 
         state.buffer32 = img::create_buffer32(n_pixels32, "buffer32");
         if (!state.buffer32.ok)
@@ -139,8 +146,8 @@ namespace video_display
         state.display_gray_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
 
-        state.gray_view = img::make_view(display_w, display_h, state.buffer8);
-        state.edges_view = img::make_view(display_w, display_h, state.buffer8);
+        state.proc_gray_view = img::make_view(process_w, process_h, state.buffer8);
+        state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
@@ -260,13 +267,11 @@ namespace internal
     {
         auto src_gray = vid::frame_gray_view(state.src_video);
 
-        constexpr auto scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
+        img::scale_down(src_gray, state.proc_gray_view);
+        img::map_scale_up(state.proc_gray_view, state.display_gray_view);
 
-        img::scale_down(src_gray, state.gray_view, scale);
-        img::map(state.gray_view, state.display_gray_view);
-
-        img::gradients(state.gray_view, state.edges_view);
-        img::map(state.edges_view, state.display_edges_view);
+        img::gradients(state.proc_gray_view, state.proc_edges_view);
+        img::map_scale_up(state.proc_edges_view, state.display_edges_view);
         
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
@@ -393,9 +398,9 @@ namespace video_display
 
     void video_preview_window(DisplayState& state)
     {
-        auto view = state.display_preview_frame.view;
-        auto dims = ImVec2(view.width, view.height);
-        auto texture = state.display_preview_texture;
+        auto display_view = state.display_preview_frame.view;
+        auto dims = ImVec2(display_view.width, display_view.height);
+        auto texture = state.display_preview_texture;        
 
         ImGui::Begin("Preview");
 
@@ -412,18 +417,16 @@ namespace video_display
 
     void video_gray_window(DisplayState& state)
     {
-        auto view = state.display_gray_view;
-        auto dims = ImVec2(view.width, view.height);
-        auto texture = state.display_gray_texture;
+        auto view = state.proc_gray_view;
+        auto display_view = state.display_gray_view;
+        auto dims = ImVec2(display_view.width, display_view.height);
+        auto texture = state.display_gray_texture;        
 
         ImGui::Begin("Gray");
 
         ImGui::Image(texture, dims);
 
-        auto w = state.dst_video.frame_width;
-        auto h = state.dst_video.frame_height;
-
-        ImGui::Text("%ux%u", w, h);
+        ImGui::Text("%ux%u", view.width, view.height);
 
         ImGui::End();
     }
@@ -431,18 +434,16 @@ namespace video_display
 
     void video_edges_window(DisplayState& state)
     {
-        auto view = state.display_edges_view;
-        auto dims = ImVec2(view.width, view.height);
+        auto view = state.proc_gray_view;
+        auto display_view = state.display_edges_view;
+        auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_edges_texture;
 
         ImGui::Begin("Edges");
 
         ImGui::Image(texture, dims);
 
-        auto w = state.dst_video.frame_width;
-        auto h = state.dst_video.frame_height;
-
-        ImGui::Text("%ux%u", w, h);
+        ImGui::Text("%ux%u", view.width, view.height);
 
         ImGui::End();
     }
