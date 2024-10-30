@@ -32,6 +32,11 @@ namespace video_display
     constexpr u32 PROC_IMAGE_WIDTH = DISPLAY_FRAME_WIDTH / 2;
     constexpr u32 PROC_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
 
+    // motion
+    constexpr u32 MOTION_RESOLUTION = 4;
+    constexpr u32 MOTION_WIDTH = 16 * MOTION_RESOLUTION;
+    constexpr u32 MOTION_HEIGHT = 9 * MOTION_RESOLUTION;
+
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/motion/build/out.mp4";
 
@@ -51,6 +56,100 @@ namespace video_display
         NotLoaded = 0,
         Play,
         Pause
+    };    
+
+
+    class GrayAvg
+    {
+    public:
+        using Matrix32 = MatrixView2D<f32>;
+
+    private:
+
+        constexpr static u32 count = 0b0001'0000;
+        constexpr static u32 mask  = 0b0000'1111;
+        constexpr static f32 i_count = 1.0f / count;
+
+        u32 index = 0;
+
+        Matrix32 list[count] = { 0 };
+        Matrix32 totals;
+        img::GrayView values;
+
+        static f32 val_to_f32(u8 v) { return (f32)v; }
+        static u8 avg_to_u8(f32 v) { return num::round_to_unsigned<u8>(v * i_count); }
+
+        void next(){ index = (index + 1) & mask; }
+
+        Matrix32& front() { return list[index]; }
+        //Matrix32& back() { return list[(index + count - 1) & mask]; }
+
+        img::Buffer32 buffer32;
+        img::Buffer8 buffer8;
+
+        static Matrix32 make_matrix(u32 w, u32 h, img::Buffer32& buffer32)
+        {
+            Matrix32 mat{};
+            mat.width = w;
+            mat.height = h;
+            mat.matrix_data_ = (f32*)mb::push_elements(buffer32, w * h);
+        }
+
+    public:
+
+        void update(img::GrayView const& src, img::GrayView const& dst)
+        {
+            auto t = img::to_span(totals);
+            auto f = img::to_span(front());
+            auto v = img::to_span(values);
+            auto d = img::to_span(dst);
+
+            span::sub(t, f, t);
+            img::scale_down(src, values);            
+            span::transform(v, f, val_to_f32);
+            span::add(t, f, t);
+            span::transform(t, v, avg_to_u8);
+            img::scale_up(values, dst);
+            next();
+        }
+
+
+        bool init(u32 width, u32 height)
+        {
+            auto n32 = width * height * (count + 1);
+            auto n8 = width * height;
+
+            buffer32 = img::create_buffer32(n32, "GrayAvg 32");
+            if (!buffer32.ok)
+            {
+                return false;
+            }
+
+            buffer8 = img::create_buffer8(n8, "GrayAvg 8");
+            if (!buffer8.ok)
+            {
+                return false;
+            }
+
+            for (u32 i = 0; i < count; i++)
+            {
+                list[i] = make_matrix(width, height, buffer32);
+            }
+
+            totals = make_matrix(width, height, buffer32);
+
+            values = img::make_view(width, height, buffer8);
+
+            return true;
+        }
+
+
+        void destroy()
+        {
+            mb::destroy_buffer(buffer32);
+            mb::destroy_buffer(buffer8);
+        }
+
     };
 
 
@@ -63,6 +162,8 @@ namespace video_display
 
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
+
+        img::GrayView motion_view;
         
         vid::FrameRGBA display_src_frame;
         vid::FrameRGBA display_preview_frame;

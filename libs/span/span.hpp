@@ -291,8 +291,8 @@ namespace span
 
 namespace span
 {
-    template <typename S, typename D>
-    inline void transform(SpanView<S> const& src, SpanView<D> const& dst, fn<D(S)> const& func)
+    template <typename S, typename D, class FUNC>
+    inline void transform(SpanView<S> const& src, SpanView<D> const& dst, FUNC const& func)
     {
         auto len = src.length;
         constexpr auto N = 8;
