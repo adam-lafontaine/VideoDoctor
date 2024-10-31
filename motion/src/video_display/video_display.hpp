@@ -77,6 +77,7 @@ namespace video_display
         Matrix32 list[count] = { 0 };
         Matrix32 totals;
         img::GrayView values;
+        img::GrayView out;
 
         static u8 abs_avg_delta(u8 v, f32 t) { return num::round_to_unsigned<u8>(num::abs(t * i_count - v)); };
         static u8 abs_delta(u8 v, f32 f) { return num::round_to_unsigned<u8>(v - f); }
@@ -107,12 +108,12 @@ namespace video_display
             auto t = img::to_span(totals);
             auto f = img::to_span(front());
             auto v = img::to_span(values);
-            auto d = img::to_span(dst);
+            auto o = img::to_span(out);
 
             // report
             img::scale_down(src, values);
-            span::transform(v, t, v, abs_avg_delta);            
-            img::scale_up(values, dst);
+            span::transform(v, t, o, abs_avg_delta);            
+            img::scale_up(out, dst);
 
             // update
             span::sub(t, f, t);
@@ -125,7 +126,7 @@ namespace video_display
         bool init(u32 width, u32 height)
         {
             auto n32 = width * height * (count + 1);
-            auto n8 = width * height;
+            auto n8 = width * height * 2;
 
             buffer32 = img::create_buffer32(n32, "GrayAvg 32");
             if (!buffer32.ok)
@@ -139,6 +140,9 @@ namespace video_display
                 return false;
             }
 
+            mb::zero_buffer(buffer32);
+            mb::zero_buffer(buffer8);
+
             for (u32 i = 0; i < count; i++)
             {
                 list[i] = make_matrix(width, height, buffer32);
@@ -147,6 +151,7 @@ namespace video_display
             totals = make_matrix(width, height, buffer32);
 
             values = img::make_view(width, height, buffer8);
+            out = img::make_view(width, height, buffer8);
 
             return true;
         }
@@ -158,7 +163,81 @@ namespace video_display
             mb::destroy_buffer(buffer8);
         }
 
+    };   
+
+
+    class GrayDelta2
+    {
+    private:
+
+        constexpr static u32 count = 0b0001'0000;
+        constexpr static u32 mask  = 0b0000'1111;
+
+        u32 index = 0;
+
+        img::GrayView list[count] = { 0 };
+        img::GrayView values;
+        img::GrayView out;
+        
+        static u8 abs_delta(u8 v, u8 f) { return num::round_to_unsigned<u8>(num::abs((f32)v - f)); }
+
+        void next(){ index = (index + 1) & mask; }
+
+        img::GrayView& front() { return list[index]; }
+        //img::GrayView& back() { return list[(index + count - 1) & mask]; }
+        
+        img::Buffer8 buffer8;
+
+    public:
+
+        void update(img::GrayView const& src, img::GrayView const& dst)
+        {
+            auto f = img::to_span(front());
+            auto v = img::to_span(values);
+            auto o = img::to_span(out);
+
+            // report
+            img::scale_down(src, values);
+            span::transform(v, f, o, abs_delta);            
+            img::scale_up(out, dst);
+
+            // update
+            span::copy(v, f);
+            next();
+        }
+
+
+        bool init(u32 width, u32 height)
+        {
+            auto n8 = width * height * (count + 2);
+
+            buffer8 = img::create_buffer8(n8, "DeltaGray");
+            if (!buffer8.ok)
+            {
+                return false;
+            }
+
+            mb::zero_buffer(buffer8);
+
+            for (u32 i = 0; i < count; i++)
+            {
+                list[i] = img::make_view(width, height, buffer8);
+            }
+
+            values = img::make_view(width, height, buffer8);
+            out = img::make_view(width, height, buffer8);
+
+            return true;
+        }
+
+
+        void destroy()
+        {
+            mb::destroy_buffer(buffer8);
+        }
+
     };
+
 
 
     class DisplayState
