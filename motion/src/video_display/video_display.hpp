@@ -4,6 +4,7 @@
 #include "../../../libs/imgui/imfilebrowser.hpp"
 #include "../../../libs/video/video.hpp"
 #include "../../../libs/util/stopwatch.hpp"
+#include "../../../libs/util/numeric.hpp"
 
 #include <thread>
 #include <filesystem>
@@ -15,6 +16,7 @@ namespace video_display
 {
     namespace img = image;
     namespace vid = video;
+    namespace num = numeric;
 
     // 4K video
     constexpr u32 SRC_VIDEO_WIDTH = 3840;
@@ -59,7 +61,7 @@ namespace video_display
     };    
 
 
-    class GrayAvg
+    class GrayDelta
     {
     public:
         using Matrix32 = MatrixView2D<f32>;
@@ -76,8 +78,8 @@ namespace video_display
         Matrix32 totals;
         img::GrayView values;
 
+        static u8 abs_avg_delta(u8 v, f32 t) { return num::round_to_unsigned<u8>(num::abs(t * i_count - v)); };
         static f32 val_to_f32(u8 v) { return (f32)v; }
-        static u8 avg_to_u8(f32 v) { return num::round_to_unsigned<u8>(v * i_count); }
 
         void next(){ index = (index + 1) & mask; }
 
@@ -93,6 +95,8 @@ namespace video_display
             mat.width = w;
             mat.height = h;
             mat.matrix_data_ = (f32*)mb::push_elements(buffer32, w * h);
+
+            return mat;
         }
 
     public:
@@ -104,12 +108,15 @@ namespace video_display
             auto v = img::to_span(values);
             auto d = img::to_span(dst);
 
+            // report
+            img::scale_down(src, values);
+            span::transform(v, t, v, abs_avg_delta);            
+            img::scale_up(values, dst);
+
+            // update
             span::sub(t, f, t);
-            img::scale_down(src, values);            
             span::transform(v, f, val_to_f32);
             span::add(t, f, t);
-            span::transform(t, v, avg_to_u8);
-            img::scale_up(values, dst);
             next();
         }
 
@@ -163,6 +170,8 @@ namespace video_display
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
 
+        GrayDelta edge_delta;
+
         img::GrayView motion_view;
         
         vid::FrameRGBA display_src_frame;
@@ -197,6 +206,8 @@ namespace video_display
     { 
         vid::destroy_frame(state.display_src_frame);
         vid::destroy_frame(state.display_preview_frame);
+
+        state.edge_delta.destroy();
 
         vid::close_video(state.src_video);
         vid::close_video(state.dst_video); //!
@@ -249,6 +260,11 @@ namespace video_display
 
         state.proc_gray_view = img::make_view(process_w, process_h, state.buffer8);
         state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
+
+        if (!state.edge_delta.init(MOTION_WIDTH, MOTION_HEIGHT))
+        {
+            return false;
+        }
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");

@@ -314,4 +314,30 @@ namespace span
             d[i + 7] = func(s[i + 7]);
         }
     }
+
+
+    template <typename S1, typename S2, typename D, class FUNC>
+    inline void transform(SpanView<S1> const& src1, SpanView<S2> const& src2, SpanView<D> const& dst, FUNC const& func)
+    {
+        auto len = src1.length;
+        constexpr auto N = 8;
+
+        assert(len % N == 0);
+
+        auto s1 = src1.data;
+        auto s2 = src2.data;
+        auto d = dst.data;
+
+        for (u32 i = 0; i < len; i += N)
+        {
+            d[i] = func(s1[i], s2[i]);
+            d[i + 1] = func(s1[i + 1], s2[i + 1]);
+            d[i + 2] = func(s1[i + 2], s2[i + 2]);
+            d[i + 3] = func(s1[i + 3], s2[i + 3]);
+            d[i + 4] = func(s1[i + 4], s2[i + 4]);
+            d[i + 5] = func(s1[i + 5], s2[i + 5]);
+            d[i + 6] = func(s1[i + 6], s2[i + 6]);
+            d[i + 7] = func(s1[i + 7], s2[i + 7]);
+        }
+    }
 }
