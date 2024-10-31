@@ -35,9 +35,8 @@ namespace video_display
     constexpr u32 PROC_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
 
     // motion
-    constexpr u32 MOTION_RESOLUTION = 4;
-    constexpr u32 MOTION_WIDTH = 16 * MOTION_RESOLUTION;
-    constexpr u32 MOTION_HEIGHT = 9 * MOTION_RESOLUTION;
+    constexpr u32 MOTION_WIDTH = PROC_IMAGE_WIDTH / 2;
+    constexpr u32 MOTION_HEIGHT = PROC_IMAGE_HEIGHT / 2;
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/motion/build/out.mp4";
@@ -68,25 +67,25 @@ namespace video_display
 
     private:
 
-        constexpr static u32 count = 0b0001'0000;
-        constexpr static u32 mask  = 0b0000'1111;
+        constexpr static u32 count = 0b1000;
+        constexpr static u32 mask  = 0b0111;
         constexpr static f32 i_count = 1.0f / count;
 
         u32 index = 0;
+
+        constexpr static f32 thresh = 20.0f;
 
         Matrix32 list[count] = { 0 };
         Matrix32 totals;
         img::GrayView values;
         img::GrayView out;
 
-        static u8 abs_avg_delta(u8 v, f32 t) { return num::round_to_unsigned<u8>(num::abs(t * i_count - v)); };
-        static u8 abs_delta(u8 v, f32 f) { return num::round_to_unsigned<u8>(v - f); }
+        static u8 abs_avg_delta(u8 v, f32 t) { return num::abs(t * i_count - v) >= thresh ? 255 : 0; };
         static f32 val_to_f32(u8 v) { return (f32)v; }
 
         void next(){ index = (index + 1) & mask; }
 
         Matrix32& front() { return list[index]; }
-        //Matrix32& back() { return list[(index + count - 1) & mask]; }
 
         img::Buffer32 buffer32;
         img::Buffer8 buffer8;
@@ -103,7 +102,7 @@ namespace video_display
 
     public:
 
-        void update(img::GrayView const& src, img::GrayView const& dst)
+        Point2Du32 update_pos(img::GrayView const& src, img::GrayView const& dst)
         {
             auto t = img::to_span(totals);
             auto f = img::to_span(front());
@@ -120,6 +119,11 @@ namespace video_display
             span::transform(v, f, val_to_f32);
             span::add(t, f, t);
             next();
+
+            auto pt = img::centroid(out, 0);
+            auto scale = src.width / out.width;
+
+            return { pt.x * scale, pt.y * scale };
         }
 
 
@@ -160,79 +164,6 @@ namespace video_display
         void destroy()
         {
             mb::destroy_buffer(buffer32);
-            mb::destroy_buffer(buffer8);
-        }
-
-    };   
-
-
-    class GrayDelta2
-    {
-    private:
-
-        constexpr static u32 count = 0b0001'0000;
-        constexpr static u32 mask  = 0b0000'1111;
-
-        u32 index = 0;
-
-        img::GrayView list[count] = { 0 };
-        img::GrayView values;
-        img::GrayView out;
-        
-        static u8 abs_delta(u8 v, u8 f) { return num::round_to_unsigned<u8>(num::abs((f32)v - f)); }
-
-        void next(){ index = (index + 1) & mask; }
-
-        img::GrayView& front() { return list[index]; }
-        //img::GrayView& back() { return list[(index + count - 1) & mask]; }
-        
-        img::Buffer8 buffer8;
-
-    public:
-
-        void update(img::GrayView const& src, img::GrayView const& dst)
-        {
-            auto f = img::to_span(front());
-            auto v = img::to_span(values);
-            auto o = img::to_span(out);
-
-            // report
-            img::scale_down(src, values);
-            span::transform(v, f, o, abs_delta);            
-            img::scale_up(out, dst);
-
-            // update
-            span::copy(v, f);
-            next();
-        }
-
-
-        bool init(u32 width, u32 height)
-        {
-            auto n8 = width * height * (count + 2);
-
-            buffer8 = img::create_buffer8(n8, "DeltaGray");
-            if (!buffer8.ok)
-            {
-                return false;
-            }
-
-            mb::zero_buffer(buffer8);
-
-            for (u32 i = 0; i < count; i++)
-            {
-                list[i] = img::make_view(width, height, buffer8);
-            }
-
-            values = img::make_view(width, height, buffer8);
-            out = img::make_view(width, height, buffer8);
-
-            return true;
-        }
-
-
-        void destroy()
-        {
             mb::destroy_buffer(buffer8);
         }
 
@@ -470,12 +401,13 @@ namespace internal
         auto src_gray = vid::frame_gray_view(state.src_video);
 
         img::scale_down(src_gray, state.proc_gray_view);
-        img::map_scale_up(state.proc_gray_view, state.display_gray_view);
-
         img::gradients(state.proc_gray_view, state.proc_edges_view);
-        img::map_scale_up(state.proc_edges_view, state.display_edges_view);
+        auto pt = state.edge_delta.update_pos(state.proc_edges_view, state.proc_motion_view);
 
-        state.edge_delta.update(state.proc_edges_view, state.proc_motion_view);
+        // TODO get region and copy to dst
+        
+        img::map_scale_up(state.proc_gray_view, state.display_gray_view);
+        img::map_scale_up(state.proc_edges_view, state.display_edges_view);
         img::map_scale_up(state.proc_motion_view, state.display_motion_view);
         
         img::fill(dst, img::to_pixel(0, 0, 100));

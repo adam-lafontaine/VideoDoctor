@@ -404,7 +404,7 @@ namespace image
     void map_scale_up(GrayView const& src, ImageView const& dst, u32 scale)
     {
         scale = scale ? scale : dst.width / src.width;
-        
+
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
         assert(dst.width == src.width * scale);
@@ -538,4 +538,49 @@ namespace image
         fill(sub_view(dst, left), 0);
         fill(sub_view(dst, right), 0);*/        
     }
+}
+
+
+/* centroid */
+
+namespace image
+{
+    Point2Du32 centroid(GrayView const& src, u32 tolerance)
+	{	
+		f64 total = 0.0;
+		f64 x_total = 0.0;
+		f64 y_total = 0.0;
+
+        auto w = src.width;
+        auto h = src.height;
+
+        auto th = tolerance ? w * h / tolerance : 0;
+
+		for (u32 y = 0; y < h; ++y)
+		{
+			auto s = row_begin(src, y);
+			for (u32 x = 0; x < w; ++x)
+			{
+				u64 val = s[x] ? 1 : 0;
+				total += val;
+				x_total += x * val;
+				y_total += y * val;
+			}
+		}        
+
+		Point2Du32 pt{};
+
+		if (total > th)
+		{			
+            pt.x = (u32)(x_total / total);
+			pt.y = (u32)(y_total / total);
+		}
+		else
+		{
+			pt.x = src.width / 2;
+			pt.y = src.height / 2;
+		}
+
+		return pt;
+	}
 }

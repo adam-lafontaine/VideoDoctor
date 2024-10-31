@@ -391,3 +391,11 @@ namespace image
 {
     void gradients(GrayView const& src, GrayView const& dst);
 }
+
+
+/* centroid */
+
+namespace image
+{
+    Point2Du32 centroid(GrayView const& src, u32 tolerance = 0);
+}
