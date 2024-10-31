@@ -5,6 +5,89 @@
 #include <thread>
 
 
+/* vectors */
+
+namespace vec
+{
+    namespace num = numeric;
+
+    
+    constexpr Vec2Df32 zero_f32 = { 0.0f, 0.0f };
+    constexpr Vec2Du32 zero_u32 = { 0, 0 };
+    constexpr Vec2Di32 zero_i32 = { 0, 0 };
+
+
+    static Vec2Df32 to_direction(uangle rot)
+    {
+        return { num::cos(rot), num::sin(rot) };
+    }
+
+
+    static Vec2Df32 rotate(Vec2Df32 vec, Vec2Df32 direction)
+    {
+        return {
+           vec.x * direction.x - vec.y * direction.y,
+           vec.x * direction.y + vec.y * direction.x
+        };
+    }
+
+
+    static Vec2Df32 rotate(Vec2Df32 vec, uangle rot)
+    {
+        return rotate(vec, to_direction(rot));
+    }
+
+
+    static Vec2Df32 add(Vec2Df32 a, Vec2Df32 b)
+    {
+        return { a.x + b.x, a.y + b.y };
+    }
+
+
+    static Vec2Df32 sub(Vec2Df32 a, Vec2Df32 b)
+    {
+        return { a.x - b.x, a.y - b.y };
+    }
+    
+
+    static Vec2Df32 mul(Vec2Df32 a, f32 scalar)
+    {
+        return { a.x * scalar, a.y * scalar };
+    }
+
+
+    static f32 dot(Vec2Df32 a, Vec2Df32 b)
+    {
+        return a.x * b.x + a.y * b.y;
+    }
+
+
+    static Vec2Df32 unit(Vec2Df32 vec)
+    {
+        auto rsqrt = num::q_rsqrt(vec.x * vec.x + vec.y * vec.y); 
+        return vec::mul(vec, rsqrt);
+    }
+
+
+    template <typename T>
+    static Vec2Df32 to_f32(Vec2D<T> vec)
+    {
+        return { (f32)vec.x, (f32)vec.y };
+    }
+
+
+    template <typename uT>
+    static Vec2D<uT> to_unsigned(Vec2Df32 vec)
+    {
+        return {
+            num::round_to_unsigned<uT>(vec.x),
+            num::round_to_unsigned<uT>(vec.y)
+        };
+    }
+
+}
+
+
 namespace video_display
 {
     
@@ -33,7 +116,7 @@ namespace gd
     
     static void next(GrayDelta& gd){ gd.index = (gd.index + 1) & gd.mask; }
 
-    static Matrix32& front(GrayDelta& gd) { return gd.list[gd.index]; }
+    static Matrix32 front(GrayDelta const& gd) { return gd.list[gd.index]; }
 
     static f32 val_to_f32(u8 v) { return (f32)v; }
 
@@ -45,6 +128,38 @@ namespace gd
 
         return num::abs(t * i_count - v) >= thresh ? 255 : 0; 
     };
+
+
+    static Point2Du32 update_pos(GrayDelta& gd, Point2Du32 pos, img::GrayView const& src, img::GrayView const& dst)
+    {
+        auto t = img::to_span(gd.totals);
+        auto f = img::to_span(front(gd));
+        auto v = img::to_span(gd.values);
+        auto o = img::to_span(gd.out);
+
+        // report
+        img::scale_down(src, gd.values);
+        span::transform(v, t, o, abs_avg_delta);            
+        img::scale_up(gd.out, dst);
+
+        // update
+        span::sub(t, f, t);
+        span::transform(v, f, val_to_f32);
+        span::add(t, f, t);
+        next(gd);
+
+        auto sensitivity = 0.7f;
+        auto acc = 0.1f;
+
+        auto scale = (f32)SRC_VIDEO_WIDTH / gd.out.width;
+        auto c = vec::mul(vec::to_f32(img::centroid(gd.out, sensitivity)), scale);
+        auto p = vec::to_f32(pos);
+
+        auto d_px = vec::sub(c, p);
+        auto vel = vec::mul(d_px, acc);
+
+        return vec::to_unsigned<u32>(vec::add(p, vel));        
+    }
 
 
     bool init(GrayDelta& gd, u32 width, u32 height)
@@ -88,31 +203,6 @@ namespace gd
     {
         mb::destroy_buffer(gd.buffer32);
         mb::destroy_buffer(gd.buffer8);
-    }
-
-
-    Point2Du32 update_pos(GrayDelta& gd, img::GrayView const& src, img::GrayView const& dst)
-    {
-        auto t = img::to_span(gd.totals);
-        auto f = img::to_span(front(gd));
-        auto v = img::to_span(gd.values);
-        auto o = img::to_span(gd.out);
-
-        // report
-        img::scale_down(src, gd.values);
-        span::transform(v, t, o, abs_avg_delta);            
-        img::scale_up(gd.out, dst);
-
-        // update
-        span::sub(t, f, t);
-        span::transform(v, f, val_to_f32);
-        span::add(t, f, t);
-        next(gd);
-
-        auto pt = img::centroid(gd.out, 0.7f);
-        auto scale = src.width / gd.out.width;
-
-        return { pt.x * scale, pt.y * scale };
     }
 }
 }
@@ -192,7 +282,7 @@ namespace internal
     }
 
 
-    Rect2Du32 get_crop_rect(Point2Du32 pt)
+    static Rect2Du32 get_crop_rect(Point2Du32 pt)
     {
         constexpr auto x_min = (SRC_VIDEO_WIDTH - DST_VIDEO_WIDTH) / 2;
         constexpr auto y_min = (SRC_VIDEO_HEIGHT - DST_VIDEO_HEIGHT) / 2;
@@ -218,13 +308,10 @@ namespace internal
 
         img::scale_down(src_gray, state.proc_gray_view);
         img::gradients(state.proc_gray_view, state.proc_edges_view);
-        auto pt = gd::update_pos(state.edge_delta, state.proc_edges_view, state.proc_motion_view);
 
-        // TODO get region and copy to dst
-        auto scale = src_gray.width / state.proc_edges_view.width;
-        pt = { pt.x * scale, pt.y * scale };
+        state.display_position = gd::update_pos(state.edge_delta, state.display_position, state.proc_edges_view, state.proc_motion_view);
 
-        img::copy(img::sub_view(vid::frame_view(state.src_video), get_crop_rect(pt)),  dst);
+        img::copy(img::sub_view(vid::frame_view(state.src_video), get_crop_rect(state.display_position)),  dst);
         
         img::map_scale_up(state.proc_gray_view, state.display_gray_view);
         img::map_scale_up(state.proc_edges_view, state.display_edges_view);

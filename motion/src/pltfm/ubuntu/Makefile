@@ -149,6 +149,7 @@ main_dep += $(alloc_type_c)
 main_dep += $(image_c)
 main_dep += $(span_c)
 main_dep += $(video_c)
+main_dep += $(video_display_c)
 
 #****************
 

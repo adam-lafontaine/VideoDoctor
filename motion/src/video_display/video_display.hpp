@@ -34,6 +34,8 @@ namespace video_display
     constexpr u32 MOTION_WIDTH = PROC_IMAGE_WIDTH / 2;
     constexpr u32 MOTION_HEIGHT = PROC_IMAGE_HEIGHT / 2;
 
+    constexpr Point2Du32 SRC_CENTER_POS = { SRC_VIDEO_WIDTH / 2, SRC_VIDEO_HEIGHT / 2 };
+
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/motion/build/out.mp4";
 
@@ -64,8 +66,6 @@ namespace gd
     bool init(GrayDelta& gd, u32 width, u32 height);
 
     void destroy(GrayDelta& gd);
-
-    Point2Du32 update_pos(GrayDelta& gd, img::GrayView const& src, img::GrayView const& dst);
 }
 
 
@@ -197,6 +197,8 @@ namespace video_display
         {
             return false;
         }
+
+        state.display_position = SRC_CENTER_POS;
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
