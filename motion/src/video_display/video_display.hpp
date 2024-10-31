@@ -120,7 +120,7 @@ namespace video_display
             span::add(t, f, t);
             next();
 
-            auto pt = img::centroid(out, 0);
+            auto pt = img::centroid(out, 0.7f);
             auto scale = src.width / out.width;
 
             return { pt.x * scale, pt.y * scale };
@@ -396,6 +396,26 @@ namespace internal
     }
 
 
+    Rect2Du32 get_crop_rect(Point2Du32 pt)
+    {
+        constexpr auto x_min = (SRC_VIDEO_WIDTH - DST_VIDEO_WIDTH) / 2;
+        constexpr auto y_min = (SRC_VIDEO_HEIGHT - DST_VIDEO_HEIGHT) / 2;
+        constexpr auto x_max = SRC_VIDEO_WIDTH - x_min;
+        constexpr auto y_max = SRC_VIDEO_HEIGHT - y_min;
+
+        auto x = num::clamp(pt.x, x_min, x_max);
+        auto y = num::clamp(pt.y, y_min, y_max);
+
+        Rect2Du32 r{};
+        r.x_begin = x - DST_VIDEO_WIDTH / 2;
+        r.x_end = r.x_begin + DST_VIDEO_WIDTH;
+        r.y_begin = y - DST_VIDEO_HEIGHT / 2;
+        r.y_end = r.y_begin + DST_VIDEO_HEIGHT;
+
+        return r;
+    }
+
+
     static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
         auto src_gray = vid::frame_gray_view(state.src_video);
@@ -405,12 +425,14 @@ namespace internal
         auto pt = state.edge_delta.update_pos(state.proc_edges_view, state.proc_motion_view);
 
         // TODO get region and copy to dst
+        auto scale = src_gray.width / state.proc_edges_view.width;
+        pt = { pt.x * scale, pt.y * scale };
+
+        img::copy(img::sub_view(vid::frame_view(state.src_video), get_crop_rect(pt)),  dst);
         
         img::map_scale_up(state.proc_gray_view, state.display_gray_view);
         img::map_scale_up(state.proc_edges_view, state.display_edges_view);
         img::map_scale_up(state.proc_motion_view, state.display_motion_view);
-        
-        img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
     

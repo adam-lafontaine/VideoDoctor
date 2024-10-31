@@ -545,7 +545,7 @@ namespace image
 
 namespace image
 {
-    Point2Du32 centroid(GrayView const& src, u32 tolerance)
+    Point2Du32 centroid(GrayView const& src, f32 sensitivity)
 	{	
 		f64 total = 0.0;
 		f64 x_total = 0.0;
@@ -554,7 +554,10 @@ namespace image
         auto w = src.width;
         auto h = src.height;
 
-        auto th = tolerance ? w * h / tolerance : 0;
+        auto s = num::clamp(sensitivity, 0.0f, 1.0f);
+        auto f = 0.99f;
+        s = f + s * (1.0f - f);
+        auto total_min = (1.0f - s) * w * h;
 
 		for (u32 y = 0; y < h; ++y)
 		{
@@ -570,15 +573,15 @@ namespace image
 
 		Point2Du32 pt{};
 
-		if (total > th)
+		if (total <= total_min)
 		{			
-            pt.x = (u32)(x_total / total);
-			pt.y = (u32)(y_total / total);
+            pt.x = src.width / 2;
+			pt.y = src.height / 2;
 		}
 		else
 		{
-			pt.x = src.width / 2;
-			pt.y = src.height / 2;
+            pt.x = (u32)(x_total / total);
+			pt.y = (u32)(y_total / total);
 		}
 
 		return pt;

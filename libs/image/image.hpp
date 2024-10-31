@@ -397,5 +397,5 @@ namespace image
 
 namespace image
 {
-    Point2Du32 centroid(GrayView const& src, u32 tolerance = 0);
+    Point2Du32 centroid(GrayView const& src, f32 sensitivity = 1.0f);
 }
