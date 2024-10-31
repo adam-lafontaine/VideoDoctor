@@ -79,6 +79,7 @@ namespace video_display
         img::GrayView values;
 
         static u8 abs_avg_delta(u8 v, f32 t) { return num::round_to_unsigned<u8>(num::abs(t * i_count - v)); };
+        static u8 abs_delta(u8 v, f32 f) { return num::round_to_unsigned<u8>(v - f); }
         static f32 val_to_f32(u8 v) { return (f32)v; }
 
         void next(){ index = (index + 1) & mask; }
@@ -172,7 +173,7 @@ namespace video_display
 
         GrayDelta edge_delta;
 
-        img::GrayView motion_view;
+        img::GrayView proc_motion_view;
         
         vid::FrameRGBA display_src_frame;
         vid::FrameRGBA display_preview_frame;
@@ -180,11 +181,13 @@ namespace video_display
         img::ImageView display_src_view;
         img::ImageView display_gray_view;
         img::ImageView display_edges_view;
+        img::ImageView display_motion_view;
         img::ImageView display_preview_view;        
 
         ImTextureID display_src_texture;
         ImTextureID display_gray_texture;
-        ImTextureID display_edges_texture;        
+        ImTextureID display_edges_texture;
+        ImTextureID display_motion_texture;
         ImTextureID display_preview_texture;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
@@ -237,8 +240,8 @@ namespace video_display
         state.display_src_view = state.display_src_frame.view;
         state.display_preview_view = state.display_preview_frame.view;
 
-        auto n_pixels32 = display_w * display_h * 2;
-        auto n_pixels8 = process_w * process_h * 2;
+        auto n_pixels32 = display_w * display_h * 3;
+        auto n_pixels8 = process_w * process_h * 3;
 
         state.buffer32 = img::create_buffer32(n_pixels32, "buffer32");
         if (!state.buffer32.ok)
@@ -257,9 +260,11 @@ namespace video_display
 
         state.display_gray_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
+        state.display_motion_view = img::make_view(display_w, display_h, state.buffer32);
 
         state.proc_gray_view = img::make_view(process_w, process_h, state.buffer8);
         state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
+        state.proc_motion_view = img::make_view(process_w, process_h, state.buffer8);
 
         if (!state.edge_delta.init(MOTION_WIDTH, MOTION_HEIGHT))
         {
@@ -376,6 +381,7 @@ namespace internal
     {
         img::fill(state.display_gray_view, img::to_pixel(100, 0, 0));
         img::fill(state.display_edges_view, img::to_pixel(0, 100, 0));
+        img::fill(state.display_motion_view, img::to_pixel(100, 100, 0));
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
@@ -389,6 +395,9 @@ namespace internal
 
         img::gradients(state.proc_gray_view, state.proc_edges_view);
         img::map_scale_up(state.proc_edges_view, state.display_edges_view);
+
+        state.edge_delta.update(state.proc_edges_view, state.proc_motion_view);
+        img::map_scale_up(state.proc_motion_view, state.display_motion_view);
         
         img::fill(dst, img::to_pixel(0, 0, 100));
     }
@@ -551,12 +560,29 @@ namespace video_display
 
     void video_edges_window(DisplayState& state)
     {
-        auto view = state.proc_gray_view;
+        auto view = state.proc_edges_view;
         auto display_view = state.display_edges_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_edges_texture;
 
         ImGui::Begin("Edges");
+
+        ImGui::Image(texture, dims);
+
+        ImGui::Text("%ux%u", view.width, view.height);
+
+        ImGui::End();
+    }
+
+
+    void video_motion_window(DisplayState& state)
+    {
+        auto view = state.proc_motion_view;
+        auto display_view = state.display_motion_view;
+        auto dims = ImVec2(display_view.width, display_view.height);
+        auto texture = state.display_motion_texture;
+
+        ImGui::Begin("Motion");
 
         ImGui::Image(texture, dims);
 

@@ -19,13 +19,14 @@ namespace
 
     vd::DisplayState vd_state;
 
-    constexpr u32 N_TEXTURES = 4;
+    constexpr u32 N_TEXTURES = 5;
     ogl::TextureList<N_TEXTURES> textures;
 
     constexpr ogl::TextureId video_src_texture_id     = { 0 };
     constexpr ogl::TextureId video_preview_texture_id = { 1 };
     constexpr ogl::TextureId video_gray_texture_id    = { 2 };
     constexpr ogl::TextureId video_edges_texture_id   = { 3 };
+    constexpr ogl::TextureId video_motion_texture_id  = { 4 };
 }
 
 
@@ -41,15 +42,17 @@ static bool is_running()
 }
 
 
-static void init_texture(image::ImageView const& src, ogl::TextureId dst_id)
+static void init_texture(image::ImageView const& src, ogl::TextureId ogl_id, ImTextureID& im_id)
 {
-    auto& dst = textures.get_ogl_texture(dst_id);
+    auto& dst = textures.get_ogl_texture(ogl_id);
 
     auto data = src.matrix_data_;
     auto w = (int)src.width;
     auto h = (int)src.height;
 
     ogl::init_texture(data, w, h, dst);
+
+    im_id = textures.get_imgui_texture(ogl_id);
 }
 
 
@@ -57,15 +60,11 @@ static void init_textures()
 {
     textures = ogl::create_textures<N_TEXTURES>();
 
-    init_texture(vd_state.display_src_view,     video_src_texture_id);
-    init_texture(vd_state.display_preview_view, video_preview_texture_id);
-    init_texture(vd_state.display_gray_view,    video_gray_texture_id);
-    init_texture(vd_state.display_edges_view,   video_edges_texture_id);
-
-    vd_state.display_src_texture     = textures.get_imgui_texture(video_src_texture_id);
-    vd_state.display_preview_texture = textures.get_imgui_texture(video_preview_texture_id);
-    vd_state.display_gray_texture    = textures.get_imgui_texture(video_gray_texture_id);
-    vd_state.display_edges_texture   = textures.get_imgui_texture(video_edges_texture_id);
+    init_texture(vd_state.display_src_view,     video_src_texture_id,     vd_state.display_src_texture);
+    init_texture(vd_state.display_preview_view, video_preview_texture_id, vd_state.display_preview_texture);
+    init_texture(vd_state.display_gray_view,    video_gray_texture_id,    vd_state.display_gray_texture);
+    init_texture(vd_state.display_edges_view,   video_edges_texture_id,   vd_state.display_edges_texture);
+    init_texture(vd_state.display_motion_view,  video_motion_texture_id,  vd_state.display_motion_texture);
 }
 
 
@@ -75,6 +74,7 @@ static void render_textures()
     ogl::render_texture(textures.get_ogl_texture(video_preview_texture_id));
     ogl::render_texture(textures.get_ogl_texture(video_gray_texture_id));
     ogl::render_texture(textures.get_ogl_texture(video_edges_texture_id));
+    ogl::render_texture(textures.get_ogl_texture(video_motion_texture_id));
 }
 
 
@@ -157,6 +157,7 @@ static void render_imgui_frame()
     vd::video_preview_window(vd_state);
     vd::video_gray_window(vd_state);
     vd::video_edges_window(vd_state);
+    vd::video_motion_window(vd_state);
 
     ui::render(ui_state);
 }
