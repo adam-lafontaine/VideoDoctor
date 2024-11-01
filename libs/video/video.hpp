@@ -48,7 +48,7 @@ namespace video
     template <class T>
     using fn = std::function<T>;
 
-    using gray_to_rgba = fn<void(img::GrayView const&, img::ImageView const&)>;
+    using fn_gray_to_rgba = fn<void(img::GrayView const&, img::ImageView const&)>;
 
 
     bool create_frame(FrameRGBA& frame, u32 width, u32 height);
@@ -68,19 +68,34 @@ namespace video
 
     void play_video(VideoReader const& video, FrameList const& frames_out);
 
-    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out);
-
-    bool next_frame(VideoReader const& video, FrameList const& frames_out);
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
     
-    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height);void close_video(VideoWriter& video);
+    
+    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height);
 
     void close_video(VideoWriter& video);
     
     void save_and_close_video(VideoWriter& video);
 
+    img::ImageView frame_view(VideoWriter const& video);
+
+    img::GrayView frame_gray_view(VideoWriter const& video);
+    
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+    
+}
+
+
+/* Deprecated */
+
+namespace video
+{
+    // Deprecated
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out);
 
-    void process_video(VideoReader const& src, VideoWriter& dst, gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+    // Deprecated
+    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out);
 
-    
+    // Deprecated
+    bool next_frame(VideoReader const& video, FrameList const& frames_out);
 }

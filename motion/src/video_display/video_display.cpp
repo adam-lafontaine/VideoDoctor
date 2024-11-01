@@ -261,13 +261,16 @@ namespace internal
 
         u32 crop_w = DST_VIDEO_WIDTH;
         u32 crop_h = DST_VIDEO_HEIGHT;
-        cstr crop_path = OUT_VIDEO_PATH;
+
+        vid::create_frame(state.dst_frame, crop_w, crop_h);
+
+        /*cstr crop_path = OUT_VIDEO_PATH;
         ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
         if (!ok)
         {
             assert("*** vid::create_video ***" && false);
             return false;
-        }
+        }*/
 
         return true;
     }
@@ -356,11 +359,12 @@ namespace internal
         };
 
         auto& src = state.src_video;
-        auto& dst = state.dst_video;
+        //auto& dst = state.dst_video;
+        auto& dst = state.dst_frame;
 
         vid::process_video(src, dst, proc, src_frames, dst_frames);
         reset_video(state);
-        vid::save_and_close_video(dst);
+        //vid::save_and_close_video(dst);
     }
 
 

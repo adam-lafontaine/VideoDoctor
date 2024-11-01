@@ -594,44 +594,33 @@ namespace video
     }
 
 
-    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out)
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
     {
-        auto& ctx = get_context(video);        
+        auto src_view = frame_gray_view(src);
+        auto dst_view = dst.view;
 
-        if (!read_next_frame(ctx))
+        auto dst_av = av_frame(dst);
+
+        auto const proc = [&](auto const& src_ctx)
         {
-            return false;
-        }
+            cb(src_view, dst_view);
 
-        convert_frame(ctx.frame_av, av_frame(frame_out));
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+            
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
 
-        av_packet_unref(ctx.packet);
-
-        return true;
+        for_each_frame(get_context(src), proc);
     }
+   
 
-
-    bool next_frame(VideoReader const& video, FrameList const& frames_out)
-    {
-        auto& ctx = get_context(video);        
-
-        if (!read_next_frame(ctx))
-        {
-            return false;
-        }        
-
-        for (auto& frame : frames_out)
-        {
-            convert_frame(ctx.frame_av, av_frame(frame));
-        }
-
-        av_packet_unref(ctx.packet);
-
-        return true;
-    }
-
-
-    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height)
+    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height)
     {
         auto& src_ctx = get_context(src);
         auto src_stream = src_ctx.stream;
@@ -653,8 +642,8 @@ namespace video
 
         auto& ctx = get_context(dst);
 
-        int w = (int)width;
-        int h = (int)height;
+        int w = (int)dst_width;
+        int h = (int)dst_height;
         auto fmt = (int)src_ctx.codec_ctx->pix_fmt;
 
         ctx.frame_av = av_frame_alloc();
@@ -707,10 +696,10 @@ namespace video
         }
         
         ctx.codec_ctx->codec_id = src_codec->id;
-        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO; // ?
+        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
         ctx.codec_ctx->pix_fmt = src_ctx.codec_ctx->pix_fmt;
-        ctx.codec_ctx->width = (int)width;
-        ctx.codec_ctx->height = (int)height;
+        ctx.codec_ctx->width = w;
+        ctx.codec_ctx->height = h;
         ctx.codec_ctx->time_base = src_stream->time_base;
         ctx.codec_ctx->framerate = src_stream->avg_frame_rate;
 
@@ -746,10 +735,10 @@ namespace video
             return false;
         }
 
-        dst.frame_width = width;
-        dst.frame_height = height;
+        dst.frame_width = dst_width;
+        dst.frame_height = dst_height;
 
-        if (!create_frame(ctx.frame_rgba, width, height))
+        if (!create_frame(ctx.frame_rgba, dst_width, dst_height))
         {
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
@@ -824,8 +813,43 @@ namespace video
 
         return view;
     }
+    
+    
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    {
+        auto src_view = frame_gray_view(src);
+        auto dst_view = frame_view(dst);
+
+        auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
+        {
+            cb(src_view, dst_view);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+
+            auto dst_av = av_frame(dst_ctx.frame_rgba);
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(get_context(src), get_context(dst), proc);
+    }
 
 
+    
+    
+}
+
+
+/* Deprecated */
+
+namespace video
+{
+    // Deprecated
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out)
     {
         auto const crop = [&](auto const& src_ctx, auto const& dst_ctx)
@@ -848,31 +872,42 @@ namespace video
     }
 
 
-    void process_video(VideoReader const& src, VideoWriter& dst, gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    // Deprecated
+    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out)
     {
-        auto src_view = frame_gray_view(src);
-        auto dst_view = frame_view(dst);
+        auto& ctx = get_context(video);        
 
-        auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
+        if (!read_next_frame(ctx))
         {
-            cb(src_view, dst_view);
-            
-            for (auto& out : src_out)
-            {
-                convert_frame(src_ctx.frame_av, av_frame(out));
-            }
+            return false;
+        }
 
-            auto proc_rgba = av_frame(dst_ctx.frame_rgba);
-            for (auto& out : dst_out)
-            {
-                convert_frame(proc_rgba, av_frame(out));
-            }
-        };
+        convert_frame(ctx.frame_av, av_frame(frame_out));
 
-        for_each_frame(get_context(src), get_context(dst), proc);
+        av_packet_unref(ctx.packet);
+
+        return true;
     }
 
 
-    
-    
+    // Deprecated
+    bool next_frame(VideoReader const& video, FrameList const& frames_out)
+    {
+        auto& ctx = get_context(video);        
+
+        if (!read_next_frame(ctx))
+        {
+            return false;
+        }        
+
+        for (auto& frame : frames_out)
+        {
+            convert_frame(ctx.frame_av, av_frame(frame));
+        }
+
+        av_packet_unref(ctx.packet);
+
+        return true;
+    }
+
 }

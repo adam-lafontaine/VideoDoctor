@@ -92,7 +92,8 @@ namespace gd
     public:
 
         vid::VideoReader src_video;
-        vid::VideoWriter dst_video;
+        //vid::VideoWriter dst_video;
+        vid::FrameRGBA dst_frame;
 
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
@@ -141,7 +142,8 @@ namespace video_display
         gd::destroy(state.edge_gd);
 
         vid::close_video(state.src_video);
-        vid::close_video(state.dst_video); //!
+        vid::destroy_frame(state.dst_frame);
+        //vid::close_video(state.dst_video); //!
         mb::destroy_buffer(state.buffer32);
         mb::destroy_buffer(state.buffer8);
     }
@@ -324,8 +326,11 @@ namespace video_display
 
         ImGui::Image(texture, dims);
 
-        auto w = state.dst_video.frame_width;
-        auto h = state.dst_video.frame_height;
+        //auto w = state.dst_video.frame_width;
+        //auto h = state.dst_video.frame_height;
+
+        auto w = state.dst_frame.view.width;
+        auto h = state.dst_frame.view.height;
 
         ImGui::Text("%ux%u", w, h);
 
