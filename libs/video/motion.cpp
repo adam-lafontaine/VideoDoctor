@@ -116,7 +116,7 @@ namespace motion
 
         auto loc_base = 0.5f;
 
-        auto loc_s = mot.location_sensitivity; // loc_base + map_f(mot.location_sensitivity) * (1.0f - loc_base);
+        auto loc_s = mot.location_sensitivity;
 
         auto const abs_avg_delta = [&](u8 v, f32 t)
         {

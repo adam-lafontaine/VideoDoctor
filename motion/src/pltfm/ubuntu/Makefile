@@ -2,8 +2,10 @@ GPP := g++-11
 
 GPP += -std=c++20
 GPP += -mavx
+
 #GPP += -O3
 #GPP += -DNDEBUG
+#GPP += -D__AVX2__
 
 #GPP += -DALLOC_COUNT
 

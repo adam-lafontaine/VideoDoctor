@@ -256,6 +256,9 @@ namespace internal
         img::map_scale_up(state.proc_gray_view, state.display_gray_view);
         img::map_scale_up(state.proc_edges_view, state.display_edges_view);
         img::map_scale_up(state.proc_motion_view, state.display_motion_view);
+
+        img::map_scale_down(src_gray, state.display_vfx_view);
+        // TODO: add overlays
     }
 
     

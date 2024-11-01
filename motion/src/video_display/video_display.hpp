@@ -78,12 +78,14 @@ namespace video_display
         img::ImageView display_gray_view;
         img::ImageView display_edges_view;
         img::ImageView display_motion_view;
+        img::ImageView display_vfx_view;
         img::ImageView display_preview_view;        
 
         ImTextureID display_src_texture;
         ImTextureID display_gray_texture;
         ImTextureID display_edges_texture;
         ImTextureID display_motion_texture;
+        ImTextureID display_vfx_texture;
         ImTextureID display_preview_texture;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
@@ -146,7 +148,7 @@ namespace video_display
         state.display_src_view = state.display_src_frame.view;
         state.display_preview_view = state.display_preview_frame.view;
 
-        auto n_pixels32 = display_w * display_h * 3;
+        auto n_pixels32 = display_w * display_h * 4;
         auto n_pixels8 = process_w * process_h * 3;
 
         state.buffer32 = img::create_buffer32(n_pixels32, "buffer32");
@@ -167,6 +169,7 @@ namespace video_display
         state.display_gray_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_motion_view = img::make_view(display_w, display_h, state.buffer32);
+        state.display_vfx_view = img::make_view(display_w, display_h, state.buffer32);
 
         state.proc_gray_view = img::make_view(process_w, process_h, state.buffer8);
         state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
@@ -357,15 +360,33 @@ namespace video_display
         auto view = state.proc_motion_view;
         auto display_view = state.display_motion_view;
         auto dims = ImVec2(display_view.width, display_view.height);
-        auto texture = state.display_motion_texture;
-
-        auto motion_xy_disabled = !state.motion_on;
+        auto texture = state.display_motion_texture;        
 
         ImGui::Begin("Motion");
 
         ImGui::Image(texture, dims);
 
-        ImGui::Text("%ux%u", view.width, view.height);
+        ImGui::Text("%ux%u", view.width, view.height);        
+
+        ImGui::End();
+    }
+
+
+    void video_vfx_window(DisplayState& state)
+    {
+        auto src_w = state.src_video.frame_width;
+        auto src_h = state.src_video.frame_height;
+        auto display_view = state.display_vfx_view;
+        auto dims = ImVec2(display_view.width, display_view.height);
+        auto texture = state.display_vfx_texture;
+
+        auto motion_xy_disabled = !state.motion_on;
+
+        ImGui::Begin("VFX");
+
+        ImGui::Image(texture, dims);
+
+        ImGui::Text("%ux%u", src_w, src_h);
 
         ImGui::Checkbox("Detect motion", &state.motion_on);
 
@@ -396,4 +417,7 @@ namespace video_display
 
         ImGui::End();
     }
+
+
+
 }

@@ -383,6 +383,8 @@ namespace image
 {
     void map(GrayView const& src, ImageView const& dst);
 
+    void map_scale_down(GrayView const& src, ImageView const& dst);
+
     void map_scale_up(GrayView const& src, ImageView const& dst);
 }
 
