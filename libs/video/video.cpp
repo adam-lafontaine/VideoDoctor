@@ -11,8 +11,6 @@ extern "C" {
 
 #include <cassert>
 
-#include <functional>
-
 
 namespace video
 {
@@ -26,7 +24,7 @@ namespace video
         AVFrame* frame_av;
         AVPacket* packet;
 
-        FrameRGBA frame_rgba;        
+        FrameRGBA frame_rgba;
     };
 
 
@@ -45,13 +43,13 @@ namespace video
     };
 
 
-    static VideoReaderContext& get_context(VideoReader video)
+    static inline VideoReaderContext& get_context(VideoReader video)
     {
         return *(VideoReaderContext*)(video.video_handle);
     }
 
 
-    static VideoWriterContext& get_context(VideoWriter video)
+    static inline VideoWriterContext& get_context(VideoWriter video)
     {
         return *(VideoWriterContext*)(video.video_handle);
     }
@@ -61,8 +59,6 @@ namespace video
     {
         return (AVFrame*)frame_rgba.frame_handle;
     }
-
-
 
 }
 
@@ -167,6 +163,8 @@ namespace video
             break;
         }
 
+        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
+
         return true;
     }
     
@@ -188,6 +186,7 @@ namespace video
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
                     {
+                        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
                         func(ctx);
                     }
                 }
@@ -214,6 +213,7 @@ namespace video
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
                     {
+                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
                         func(src_ctx, dst_ctx);                        
                     }
                 }
@@ -338,7 +338,7 @@ namespace video
             assert("*** av_frame_get_buffer / crop ***" && false);
         }
 
-        //#define USE_IMAGE
+        #define USE_IMAGE
 
         #ifndef USE_IMAGE
 
@@ -558,6 +558,28 @@ namespace video
     }
 
 
+    img::ImageView frame_view(VideoReader const& video)
+    {
+        assert(video.video_handle);
+
+        return get_context(video).frame_rgba.view;
+    }
+
+
+    img::GrayView frame_gray_view(VideoReader const& video)
+    {
+        assert(video.video_handle);
+
+        img::GrayView view{};
+
+        view.width = video.frame_width;
+        view.height = video.frame_height;
+        view.matrix_data_ = get_context(video).frame_av->data[0]; // assume YUV
+
+        return view;
+    }
+    
+    
     void play_video(VideoReader const& video, FrameList const& frames_out)
     {
         auto const copy = [&](auto const& src_ctx)
@@ -572,47 +594,33 @@ namespace video
     }
 
 
-    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out)
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
     {
-        auto& ctx = get_context(video);        
+        auto src_view = frame_gray_view(src);
+        auto dst_view = dst.view;
 
-        if (!read_next_frame(ctx))
+        auto dst_av = av_frame(dst);
+
+        auto const proc = [&](auto const& src_ctx)
         {
-            return false;
-        }
+            cb(src_view, dst_view);
 
-        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
-        convert_frame(ctx.frame_av, av_frame(frame_out));
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+            
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
 
-        av_packet_unref(ctx.packet);
-
-        return true;
+        for_each_frame(get_context(src), proc);
     }
+   
 
-
-    bool next_frame(VideoReader const& video, FrameList const& frames_out)
-    {
-        auto& ctx = get_context(video);        
-
-        if (!read_next_frame(ctx))
-        {
-            return false;
-        }
-
-        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
-
-        for (auto& frame : frames_out)
-        {
-            convert_frame(ctx.frame_av, av_frame(frame));
-        }
-
-        av_packet_unref(ctx.packet);
-
-        return true;
-    }
-
-
-    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 width, u32 height)
+    bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height)
     {
         auto& src_ctx = get_context(src);
         auto src_stream = src_ctx.stream;
@@ -634,8 +642,8 @@ namespace video
 
         auto& ctx = get_context(dst);
 
-        int w = (int)width;
-        int h = (int)height;
+        int w = (int)dst_width;
+        int h = (int)dst_height;
         auto fmt = (int)src_ctx.codec_ctx->pix_fmt;
 
         ctx.frame_av = av_frame_alloc();
@@ -688,10 +696,10 @@ namespace video
         }
         
         ctx.codec_ctx->codec_id = src_codec->id;
-        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO; // ?
+        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
         ctx.codec_ctx->pix_fmt = src_ctx.codec_ctx->pix_fmt;
-        ctx.codec_ctx->width = (int)width;
-        ctx.codec_ctx->height = (int)height;
+        ctx.codec_ctx->width = w;
+        ctx.codec_ctx->height = h;
         ctx.codec_ctx->time_base = src_stream->time_base;
         ctx.codec_ctx->framerate = src_stream->avg_frame_rate;
 
@@ -727,10 +735,10 @@ namespace video
             return false;
         }
 
-        dst.frame_width = width;
-        dst.frame_height = height;
+        dst.frame_width = dst_width;
+        dst.frame_height = dst_height;
 
-        if (!create_frame(ctx.frame_rgba, width, height))
+        if (!create_frame(ctx.frame_rgba, dst_width, dst_height))
         {
             avformat_free_context(ctx.format_ctx);
             avcodec_free_context(&ctx.codec_ctx);
@@ -744,28 +752,6 @@ namespace video
         ctx.packet_duration = tb * fr;
 
         return true;
-    }
-
-
-    void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out)
-    {
-        auto const crop = [&](auto const& src_ctx, auto const& dst_ctx)
-        {            
-            crop_frame(src_ctx, dst_ctx);
-
-            for (auto& out : src_out)
-            {
-                convert_frame(src_ctx.frame_av, av_frame(out));
-            }
-            
-            auto crop_rgba = av_frame(dst_ctx.frame_rgba);
-            for (auto& out : dst_out)
-            {
-                convert_frame(crop_rgba, av_frame(out));
-            }
-        };
-
-        for_each_frame(get_context(src), get_context(dst), crop);
     }
 
 
@@ -807,6 +793,121 @@ namespace video
     }
 
 
+    img::ImageView frame_view(VideoWriter const& video)
+    {
+        assert(video.video_handle);
+
+        return get_context(video).frame_rgba.view;
+    }
+
+
+    img::GrayView frame_gray_view(VideoWriter const& video)
+    {
+        assert(video.video_handle);
+
+        img::GrayView view{};
+
+        view.width = video.frame_width;
+        view.height = video.frame_height;
+        view.matrix_data_ = get_context(video).frame_av->data[0]; // assume YUV
+
+        return view;
+    }
     
     
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    {
+        auto src_view = frame_gray_view(src);
+        auto dst_view = frame_view(dst);
+
+        auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
+        {
+            cb(src_view, dst_view);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+
+            auto dst_av = av_frame(dst_ctx.frame_rgba);
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(get_context(src), get_context(dst), proc);
+    }
+
+
+    
+    
+}
+
+
+/* Deprecated */
+
+namespace video
+{
+    // Deprecated
+    void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out)
+    {
+        auto const crop = [&](auto const& src_ctx, auto const& dst_ctx)
+        {            
+            crop_frame(src_ctx, dst_ctx);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+            
+            auto crop_rgba = av_frame(dst_ctx.frame_rgba);
+            for (auto& out : dst_out)
+            {
+                convert_frame(crop_rgba, av_frame(out));
+            }
+        };
+
+        for_each_frame(get_context(src), get_context(dst), crop);
+    }
+
+
+    // Deprecated
+    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out)
+    {
+        auto& ctx = get_context(video);        
+
+        if (!read_next_frame(ctx))
+        {
+            return false;
+        }
+
+        convert_frame(ctx.frame_av, av_frame(frame_out));
+
+        av_packet_unref(ctx.packet);
+
+        return true;
+    }
+
+
+    // Deprecated
+    bool next_frame(VideoReader const& video, FrameList const& frames_out)
+    {
+        auto& ctx = get_context(video);        
+
+        if (!read_next_frame(ctx))
+        {
+            return false;
+        }        
+
+        for (auto& frame : frames_out)
+        {
+            convert_frame(ctx.frame_av, av_frame(frame));
+        }
+
+        av_packet_unref(ctx.packet);
+
+        return true;
+    }
+
 }

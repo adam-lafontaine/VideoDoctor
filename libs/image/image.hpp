@@ -2,13 +2,7 @@
 
 #include "../span/span.hpp"
 
-#include <functional>
-
 namespace mb = memory_buffer;
-
-template <class F>
-using fn = std::function<F>;
-
 
 /*  image basic */
 
@@ -178,6 +172,13 @@ namespace image
     {
         return view.matrix_data_ + (u64)(view.y_begin + y) * view.matrix_width + view.x_begin;
     }
+
+
+    template <typename T>
+    static inline T* row_begin(MatrixSubView2D<T> const& view, i32 y)
+    {
+        return view.matrix_data_ + (i64)((i32)view.y_begin + y) * view.matrix_width + view.x_begin;
+    }
 }
 
 
@@ -331,6 +332,10 @@ namespace image
     void fill(ImageView const& view, Pixel color);
 
     void fill(SubView const& view, Pixel color);
+
+    void fill(GrayView const& view, u8 value);
+
+    void fill(GraySubView const& view, u8 value);
 }
 
 
@@ -353,4 +358,46 @@ namespace image
 namespace image
 {
     void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func);
+}
+
+
+/* resize */
+
+namespace image
+{
+    void scale_down(ImageView const& src, ImageView const& dst);
+
+    void scale_down(GrayView const& src, GrayView const& dst);
+
+    void scale_up(ImageView const& src, ImageView const& dst);
+
+    void scale_up(GrayView const& src, GrayView const& dst);
+
+    void scale_up(GraySubView const& src, GraySubView const& dst);
+}
+
+
+/* map */
+
+namespace image
+{
+    void map(GrayView const& src, ImageView const& dst);
+
+    void map_scale_up(GrayView const& src, ImageView const& dst);
+}
+
+
+/* gradients */
+
+namespace image
+{
+    void gradients(GrayView const& src, GrayView const& dst);
+}
+
+
+/* centroid */
+
+namespace image
+{
+    Point2Du32 centroid(GrayView const& src, Point2Du32 default_pt, f32 sensitivity);
 }
