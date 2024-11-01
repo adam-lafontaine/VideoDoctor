@@ -216,9 +216,9 @@ namespace image
 
 namespace image
 {
-    void scale_down(ImageView const& src, ImageView const& dst, u32 scale)
+    void scale_down(ImageView const& src, ImageView const& dst)
     {
-        scale = scale ? scale : src.width / dst.width;
+        auto scale = src.width / dst.width;
 
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
@@ -267,9 +267,9 @@ namespace image
     }
 
 
-    void scale_down(GrayView const& src, GrayView const& dst, u32 scale)
+    void scale_down(GrayView const& src, GrayView const& dst)
     {
-        scale = scale ? scale : src.width / dst.width;
+        auto scale = src.width / dst.width;
 
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
@@ -308,16 +308,9 @@ namespace image
     }
 
 
-    void scale_up(ImageView const& src, ImageView const& dst, u32 scale)
-    {
-        scale = scale ? scale : dst.width / src.width;
-
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(dst.width == src.width * scale);
-        assert(dst.height == src.height * scale);
-        assert(scale > 1);
-
+    template <class SRC, class DST>
+    void matrix_scale_up(SRC const& src, DST const& dst, u32 scale)
+    {        
         for (u32 ys = 0; ys < src.height; ys++)
         {
             auto yd = scale * ys;
@@ -342,9 +335,9 @@ namespace image
     }
 
 
-    void scale_up(GrayView const& src, GrayView const& dst, u32 scale)
+    void scale_up(ImageView const& src, ImageView const& dst)
     {
-        scale = scale ? scale : dst.width / src.width;
+        auto scale = dst.width / src.width;
 
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
@@ -352,27 +345,35 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        for (u32 ys = 0; ys < src.height; ys++)
-        {
-            auto yd = scale * ys;
-            auto rs = row_begin(src, ys);
+        matrix_scale_up(src, dst, scale);
+    }
 
-            for (u32 xs = 0; xs < src.width; xs++)
-            {
-                auto xd = scale * xs;
 
-                auto p = rs[xs];
+    void scale_up(GrayView const& src, GrayView const& dst)
+    {
+       auto scale = dst.width / src.width;
 
-                for (u32 v = 0; v < scale; v++)
-                {
-                    auto rd = row_begin(dst, yd + v) + xd;
-                    for (u32 u = 0; u < scale; u++)
-                    {
-                        rd[u] = p;
-                    }
-                }
-            }
-        }
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width * scale);
+        assert(dst.height == src.height * scale);
+        assert(scale > 1);
+
+        matrix_scale_up(src, dst, scale);
+    }
+
+
+    void scale_up(GraySubView const& src, GraySubView const& dst)
+    {
+        auto scale = dst.width / src.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width * scale);
+        assert(dst.height == src.height * scale);
+        assert(scale > 1);
+
+        matrix_scale_up(src, dst, scale);
     }
 }
 
@@ -401,9 +402,9 @@ namespace image
     }
 
 
-    void map_scale_up(GrayView const& src, ImageView const& dst, u32 scale)
+    void map_scale_up(GrayView const& src, ImageView const& dst)
     {
-        scale = scale ? scale : dst.width / src.width;
+        auto scale = dst.width / src.width;
 
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
@@ -556,7 +557,7 @@ namespace image
 
         auto s = num::clamp(sensitivity, 0.0f, 1.0f);
         
-        auto total_min = (1.0f - s) * w * h;
+        auto total_min = 1 + (1.0f - s) * (w * h - 1);
 
 		for (u32 y = 0; y < h; ++y)
 		{
@@ -570,7 +571,7 @@ namespace image
 			}
 		}
 
-		if (total <= total_min)
+		if (total < total_min)
 		{			
             return default_pt;
 		}

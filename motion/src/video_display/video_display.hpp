@@ -98,6 +98,12 @@ namespace video_display
 
         img::Buffer32 buffer32;
         img::Buffer8 buffer8;
+
+        // ui properties
+        bool motion_on;
+        bool motion_x_on;
+        bool motion_y_on;
+
     };
 }
 
@@ -178,6 +184,10 @@ namespace video_display
         fb.SetTitle("Video Select");
         fb.SetTypeFilters({".mp4"});
         fb.SetDirectory(fs::path(SRC_VIDEO_DIR));
+
+        state.motion_on = true;
+        state.motion_x_on = true;
+        state.motion_y_on = true;
 
         return true;
     }    
@@ -349,11 +359,25 @@ namespace video_display
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_motion_texture;
 
+        auto motion_xy_disabled = !state.motion_on;
+
         ImGui::Begin("Motion");
 
         ImGui::Image(texture, dims);
 
         ImGui::Text("%ux%u", view.width, view.height);
+
+        ImGui::Checkbox("Detect motion", &state.motion_on);
+
+        if (motion_xy_disabled) { ImGui::BeginDisabled(); }
+
+        ImGui::SameLine();
+        ImGui::Checkbox("X", &state.motion_x_on);
+
+        ImGui::SameLine();
+        ImGui::Checkbox("Y", &state.motion_y_on);
+
+        if (motion_xy_disabled) { ImGui::EndDisabled(); }
 
         ImGui::End();
     }

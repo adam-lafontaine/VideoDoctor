@@ -20,15 +20,19 @@ namespace motion
 
     static void next(GrayMotion& mot)
     { 
-        mot.index = (mot.index + 1) & mot.mask; 
-    
+        static_assert(GrayMotion::count % 2 == 0);
 
+        constexpr auto mask = GrayMotion::count - 1;
+
+        mot.index = (mot.index + 1) & mask;
     }
+
 
     static Matrix32 front(GrayMotion const& mot) 
     { 
         return mot.list[mot.index]; 
     }
+
 
     static f32 val_to_f32(u8 v) { return (f32)v; }
 }
@@ -83,8 +87,8 @@ namespace motion
     void update(GrayMotion& mot, img::GrayView const& src)
     {
         constexpr auto i_count = 1.0f / GrayMotion::count;
-        constexpr auto thresh = 10.0f;
-        constexpr auto s = 1.0f;
+
+        auto thresh = mot.value_delta_threshold * 255.0f;
 
         auto const abs_avg_delta = [&](u8 v, f32 t)
         {
@@ -101,7 +105,7 @@ namespace motion
         img::scale_down(src, mot.values);
         span::transform(v, t, o, abs_avg_delta);
 
-        mot.location = img::centroid(mot.out, mot.location, s);
+        mot.location = img::centroid(mot.out, mot.location, mot.location_sensitivity);
 
         span::sub(t, f, t);
         span::transform(v, f, val_to_f32);

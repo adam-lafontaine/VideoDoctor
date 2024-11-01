@@ -13,8 +13,10 @@ namespace motion
     {
     public:
 
-        constexpr static u32 count = 0b1000;
-        constexpr static u32 mask  = 0b0111;
+        constexpr static u32 count = 0b1000; // 30fps
+
+        f32 value_delta_threshold = 0.05f;
+        f32 location_sensitivity = 0.999f;
 
         u32 index = 0;
 

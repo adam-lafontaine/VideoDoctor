@@ -205,6 +205,35 @@ namespace internal
     }
 
 
+    static void update_display_position(DisplayState& state)
+    {
+        if (!state.motion_on)
+        {
+            return;
+        }
+
+        auto acc = 0.08f;
+
+        auto fp = vec::to_f32(state.feature_position);
+        auto dp = vec::to_f32(state.display_position);
+
+        auto d_px = vec::sub(fp, dp);
+        auto v_px = vec::mul(d_px, acc);
+
+        auto pos = vec::to_unsigned<u32>(vec::add(dp, v_px));
+
+        if (state.motion_x_on)
+        {
+            state.display_position.x = pos.x;
+        }
+
+        if (state.motion_y_on)
+        {
+            state.display_position.y = pos.y;
+        }
+    }
+
+
     static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
         auto src_gray = vid::frame_gray_view(state.src_video);
@@ -220,15 +249,7 @@ namespace internal
 
         state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
-        auto acc = 0.05f;
-
-        auto fp = vec::to_f32(state.feature_position);
-        auto dp = vec::to_f32(state.display_position);
-
-        auto d_px = vec::sub(fp, dp);
-
-        state.display_position = vec::to_unsigned<u32>(vec::add(dp, vec::mul(d_px, acc)));
-        
+        update_display_position(state);
         
         img::copy(img::sub_view(vid::frame_view(state.src_video), get_crop_rect(state.display_position)),  dst);
         
