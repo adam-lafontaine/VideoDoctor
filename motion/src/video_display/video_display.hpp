@@ -379,6 +379,21 @@ namespace video_display
 
         if (motion_xy_disabled) { ImGui::EndDisabled(); }
 
+        ImGui::Text("Sensitivity");
+        ImGui::SliderFloat(
+            "Motion Sensitivity",
+            &state.edge_motion.motion_sensitivity,
+            0.5f, 0.9999f,
+            "%6.4f"
+        );
+
+        ImGui::SliderFloat(
+            "Location sensitivity",
+            &state.edge_motion.location_sensitivity,
+            0.9f, 0.9999f,
+            "%6.4f"
+        );
+
         ImGui::End();
     }
 }

@@ -35,6 +35,30 @@ namespace motion
 
 
     static f32 val_to_f32(u8 v) { return (f32)v; }
+
+
+    f32 map_f(f32 x)
+    {
+        f32 m = 1.0f;
+        f32 b = 0.0f;
+
+        auto ux = num::round_to_unsigned<u8>(num::floor(x * 10));
+
+        switch (ux)
+        {
+        case 0:
+        case 1:
+            m = 4.5f;
+            b = 0.0f;
+
+        default:
+            m = 0.125f;
+            b = 0.875f;
+        break;
+        }
+
+        return m * x + b;
+    }
 }
 
 
@@ -88,7 +112,11 @@ namespace motion
     {
         constexpr auto i_count = 1.0f / GrayMotion::count;
 
-        auto thresh = mot.value_delta_threshold * 255.0f;
+        auto thresh = (1.0f - map_f(mot.motion_sensitivity)) * 255;
+
+        auto loc_base = 0.5f;
+
+        auto loc_s = mot.location_sensitivity; // loc_base + map_f(mot.location_sensitivity) * (1.0f - loc_base);
 
         auto const abs_avg_delta = [&](u8 v, f32 t)
         {
@@ -105,7 +133,7 @@ namespace motion
         img::scale_down(src, mot.values);
         span::transform(v, t, o, abs_avg_delta);
 
-        mot.location = img::centroid(mot.out, mot.location, mot.location_sensitivity);
+        mot.location = img::centroid(mot.out, mot.location, loc_s);
 
         span::sub(t, f, t);
         span::transform(v, f, val_to_f32);

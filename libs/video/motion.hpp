@@ -15,8 +15,8 @@ namespace motion
 
         constexpr static u32 count = 0b1000; // 30fps
 
-        f32 value_delta_threshold = 0.05f;
-        f32 location_sensitivity = 0.999f;
+        f32 motion_sensitivity = 0.8f;
+        f32 location_sensitivity = 0.95f;
 
         u32 index = 0;
 
