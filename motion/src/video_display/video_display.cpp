@@ -108,120 +108,6 @@ namespace video_display
 }
 
 
-/* gray delta */
-
-namespace video_display
-{
-namespace gd
-{
-    static Matrix32 make_matrix(u32 w, u32 h, img::Buffer32& buffer32)
-    {
-        Matrix32 mat{};
-        mat.width = w;
-        mat.height = h;
-        mat.matrix_data_ = (f32*)mb::push_elements(buffer32, w * h);
-
-        return mat;
-    }
-    
-    
-    static void next(GrayDelta& gd){ gd.index = (gd.index + 1) & gd.mask; }
-
-    static Matrix32 front(GrayDelta const& gd) { return gd.list[gd.index]; }
-
-    static f32 val_to_f32(u8 v) { return (f32)v; }
-
-
-    static u8 abs_avg_delta(u8 v, f32 t) 
-    {
-        constexpr auto i_count = 1.0f / GrayDelta::count;
-        constexpr auto thresh = 10.0f;
-
-        return num::abs(t * i_count - v) >= thresh ? 255 : 0; 
-    }
-
-
-    static void update(GrayDelta& gd, img::GrayView const& src, img::GrayView const& dst)
-    {
-        auto t = img::to_span(gd.totals);
-        auto f = img::to_span(front(gd));
-        auto v = img::to_span(gd.values);
-        auto o = img::to_span(gd.out);
-
-        // report
-        img::scale_down(src, gd.values);
-        span::transform(v, t, o, abs_avg_delta);            
-        img::scale_up(gd.out, dst);
-
-        // update
-        span::sub(t, f, t);
-        span::transform(v, f, val_to_f32);
-        span::add(t, f, t);
-        next(gd);
-    }
-
-
-    static Point2Du32 locate_feature(GrayDelta& gd, Point2Du32 pos)
-    {
-        auto sensitivity = 0.7f;
-
-        auto scale = (f32)SRC_VIDEO_WIDTH / gd.out.width;
-        auto i_scale = 1.0f / scale;
-
-        auto p = vec::mul(pos, i_scale);
-        
-        auto c = img::centroid(gd.out, p, sensitivity);
-
-        return vec::mul(c, scale);
-    }
-
-
-    bool init(GrayDelta& gd, u32 width, u32 height)
-    {
-        auto n32 = width * height * (gd.count + 1);
-        auto n8 = width * height * 2;
-
-        auto& buffer32 = gd.buffer32;
-        auto& buffer8 = gd.buffer8;
-
-        buffer32 = img::create_buffer32(n32, "GrayAvg 32");
-        if (!buffer32.ok)
-        {
-            return false;
-        }
-
-        buffer8 = img::create_buffer8(n8, "GrayAvg 8");
-        if (!buffer8.ok)
-        {
-            return false;
-        }
-
-        mb::zero_buffer(buffer32);
-        mb::zero_buffer(buffer8);
-
-        for (u32 i = 0; i < gd.count; i++)
-        {
-            gd.list[i] = make_matrix(width, height, buffer32);
-        }
-
-        gd.totals = make_matrix(width, height, buffer32);
-
-        gd.values = img::make_view(width, height, buffer8);
-        gd.out = img::make_view(width, height, buffer8);
-
-        return true;
-    }
-
-
-    void destroy(GrayDelta& gd)
-    {
-        mb::destroy_buffer(gd.buffer32);
-        mb::destroy_buffer(gd.buffer8);
-    }
-}
-}
-
-
 /* internal */
 
 namespace video_display
@@ -322,13 +208,17 @@ namespace internal
     static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
         auto src_gray = vid::frame_gray_view(state.src_video);
+        auto& proc_gray = state.proc_gray_view;
+        auto& proc_edges = state.proc_edges_view;
+        auto& proc_motion = state.proc_motion_view;
 
-        img::scale_down(src_gray, state.proc_gray_view);
-        img::gradients(state.proc_gray_view, state.proc_edges_view);
+        img::scale_down(src_gray, proc_gray);
+        img::gradients(proc_gray, proc_edges);
+        motion::update(state.edge_motion, proc_edges, proc_motion);
 
-        gd::update(state.edge_gd, state.proc_edges_view, state.proc_motion_view);
+        constexpr auto motion_scale = SRC_VIDEO_WIDTH / MOTION_WIDTH;
 
-        state.feature_position = gd::locate_feature(state.edge_gd, state.feature_position);
+        state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
         auto acc = 0.05f;
 

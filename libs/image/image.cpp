@@ -555,8 +555,7 @@ namespace image
         auto h = src.height;
 
         auto s = num::clamp(sensitivity, 0.0f, 1.0f);
-        auto f = 0.99f;
-        s = f + s * (1.0f - f);
+        
         auto total_min = (1.0f - s) * w * h;
 
 		for (u32 y = 0; y < h; ++y)

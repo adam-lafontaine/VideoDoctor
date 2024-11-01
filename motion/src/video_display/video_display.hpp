@@ -3,6 +3,7 @@
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/imgui/imfilebrowser.hpp"
 #include "../../../libs/video/video.hpp"
+#include "../../../libs/video/motion.hpp"
 
 #include <filesystem>
 
@@ -38,36 +39,6 @@ namespace video_display
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/motion/build/out.mp4";
-
-
-namespace gd
-{
-    using Matrix32 = MatrixView2D<f32>;
-
-    class GrayDelta
-    {
-    public:
-
-        constexpr static u32 count = 0b1000;
-        constexpr static u32 mask  = 0b0111;
-
-        u32 index = 0;
-
-        Matrix32 list[count] = { 0 };
-        Matrix32 totals;
-        img::GrayView values;
-        img::GrayView out;        
-
-        img::Buffer32 buffer32;
-        img::Buffer8 buffer8;
-    };
-
-
-    bool init(GrayDelta& gd, u32 width, u32 height);
-
-    void destroy(GrayDelta& gd);
-}
-
 
 
     enum class VideoLoadStatus : u8
@@ -118,8 +89,7 @@ namespace gd
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
 
-        gd::GrayDelta edge_gd;
-
+        motion::GrayMotion edge_motion;
         Point2Du32 feature_position;
         Point2Du32 display_position;
 
@@ -139,7 +109,7 @@ namespace video_display
         vid::destroy_frame(state.display_src_frame);
         vid::destroy_frame(state.display_preview_frame);
 
-        gd::destroy(state.edge_gd);
+        motion::destroy(state.edge_motion);
 
         vid::close_video(state.src_video);
         vid::destroy_frame(state.dst_frame);
@@ -196,7 +166,7 @@ namespace video_display
         state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
         state.proc_motion_view = img::make_view(process_w, process_h, state.buffer8);
 
-        if (!gd::init(state.edge_gd, MOTION_WIDTH, MOTION_HEIGHT))
+        if (!motion::create(state.edge_motion, MOTION_WIDTH, MOTION_HEIGHT))
         {
             return false;
         }

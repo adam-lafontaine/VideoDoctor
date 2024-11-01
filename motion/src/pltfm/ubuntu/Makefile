@@ -117,6 +117,13 @@ video_h += $(image_h)
 video_c := $(video)/video.cpp
 video_c += $(video_h)
 
+motion_h := $(video)/motion.hpp
+motion_h += $(image_h)
+
+motion_c := $(video)/motion.cpp
+motion_c += $(motion_h)
+motion_c += $(numeric_h)
+
 #*************
 
 
@@ -149,6 +156,7 @@ main_dep += $(alloc_type_c)
 main_dep += $(image_c)
 main_dep += $(span_c)
 main_dep += $(video_c)
+main_dep += $(motion_c)
 main_dep += $(video_display_c)
 
 #****************
