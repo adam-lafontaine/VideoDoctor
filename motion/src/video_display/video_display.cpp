@@ -85,6 +85,17 @@ namespace vec
         };
     }
 
+    static Vec2Du32 mul(Vec2Du32 a, u32 scalar)
+    {
+        return { a.x * scalar, a.y * scalar };
+    }
+
+
+    static Vec2Du32 mul(Vec2Du32 vec, f32 scalar)
+    {
+        return to_unsigned<u32>(mul(to_f32(vec), scalar));
+    }
+
 }
 
 
@@ -127,10 +138,10 @@ namespace gd
         constexpr auto thresh = 10.0f;
 
         return num::abs(t * i_count - v) >= thresh ? 255 : 0; 
-    };
+    }
 
 
-    static Point2Du32 update_pos(GrayDelta& gd, Point2Du32 pos, img::GrayView const& src, img::GrayView const& dst)
+    static void update(GrayDelta& gd, img::GrayView const& src, img::GrayView const& dst)
     {
         auto t = img::to_span(gd.totals);
         auto f = img::to_span(front(gd));
@@ -147,18 +158,21 @@ namespace gd
         span::transform(v, f, val_to_f32);
         span::add(t, f, t);
         next(gd);
+    }
 
+
+    static Point2Du32 locate_feature(GrayDelta& gd, Point2Du32 pos)
+    {
         auto sensitivity = 0.7f;
-        auto acc = 0.1f;
 
         auto scale = (f32)SRC_VIDEO_WIDTH / gd.out.width;
-        auto c = vec::mul(vec::to_f32(img::centroid(gd.out, sensitivity)), scale);
-        auto p = vec::to_f32(pos);
+        auto i_scale = 1.0f / scale;
 
-        auto d_px = vec::sub(c, p);
-        auto vel = vec::mul(d_px, acc);
+        auto p = vec::mul(pos, i_scale);
+        
+        auto c = img::centroid(gd.out, p, sensitivity);
 
-        return vec::to_unsigned<u32>(vec::add(p, vel));        
+        return vec::mul(c, scale);
     }
 
 
@@ -309,8 +323,20 @@ namespace internal
         img::scale_down(src_gray, state.proc_gray_view);
         img::gradients(state.proc_gray_view, state.proc_edges_view);
 
-        state.display_position = gd::update_pos(state.edge_delta, state.display_position, state.proc_edges_view, state.proc_motion_view);
+        gd::update(state.edge_gd, state.proc_edges_view, state.proc_motion_view);
 
+        state.feature_position = gd::locate_feature(state.edge_gd, state.feature_position);
+
+        auto acc = 0.05f;
+
+        auto fp = vec::to_f32(state.feature_position);
+        auto dp = vec::to_f32(state.display_position);
+
+        auto d_px = vec::sub(fp, dp);
+
+        state.display_position = vec::to_unsigned<u32>(vec::add(dp, vec::mul(d_px, acc)));
+        
+        
         img::copy(img::sub_view(vid::frame_view(state.src_video), get_crop_rect(state.display_position)),  dst);
         
         img::map_scale_up(state.proc_gray_view, state.display_gray_view);

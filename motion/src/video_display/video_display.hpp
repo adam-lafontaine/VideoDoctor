@@ -97,8 +97,6 @@ namespace gd
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
 
-        gd::GrayDelta edge_delta;
-
         img::GrayView proc_motion_view;
         
         vid::FrameRGBA display_src_frame;
@@ -119,6 +117,9 @@ namespace gd
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
 
+        gd::GrayDelta edge_gd;
+
+        Point2Du32 feature_position;
         Point2Du32 display_position;
 
         fs::path src_video_filepath;
@@ -137,7 +138,7 @@ namespace video_display
         vid::destroy_frame(state.display_src_frame);
         vid::destroy_frame(state.display_preview_frame);
 
-        gd::destroy(state.edge_delta);
+        gd::destroy(state.edge_gd);
 
         vid::close_video(state.src_video);
         vid::close_video(state.dst_video); //!
@@ -193,11 +194,12 @@ namespace video_display
         state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
         state.proc_motion_view = img::make_view(process_w, process_h, state.buffer8);
 
-        if (!gd::init(state.edge_delta, MOTION_WIDTH, MOTION_HEIGHT))
+        if (!gd::init(state.edge_gd, MOTION_WIDTH, MOTION_HEIGHT))
         {
             return false;
         }
 
+        state.feature_position = SRC_CENTER_POS;
         state.display_position = SRC_CENTER_POS;
 
         auto& fb = state.fb_video;

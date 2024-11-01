@@ -545,7 +545,7 @@ namespace image
 
 namespace image
 {
-    Point2Du32 centroid(GrayView const& src, f32 sensitivity)
+    Point2Du32 centroid(GrayView const& src, Point2Du32 default_pt, f32 sensitivity)
 	{	
 		f64 total = 0.0;
 		f64 x_total = 0.0;
@@ -569,21 +569,27 @@ namespace image
 				x_total += x * val;
 				y_total += y * val;
 			}
-		}        
-
-		Point2Du32 pt{};
+		}
 
 		if (total <= total_min)
 		{			
-            pt.x = src.width / 2;
-			pt.y = src.height / 2;
+            return default_pt;
 		}
 		else
 		{
-            pt.x = (u32)(x_total / total);
-			pt.y = (u32)(y_total / total);
+            return {
+                (u32)(x_total / total),
+			    (u32)(y_total / total)
+            };
+            
 		}
+	}
 
-		return pt;
+
+    Point2Du32 centroid(GrayView const& src, f32 sensitivity)
+	{	
+		Point2Du32 default_pt = { src.width / 2, src.height / 2 };
+
+        return centroid(src, default_pt, sensitivity);
 	}
 }

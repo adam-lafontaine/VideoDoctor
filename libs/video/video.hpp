@@ -78,10 +78,6 @@ namespace video
     
     void save_and_close_video(VideoWriter& video);
 
-    img::ImageView frame_view(VideoReader const& video);
-
-    img::GrayView frame_gray_view(VideoReader const& video);
-
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out);
 
     void process_video(VideoReader const& src, VideoWriter& dst, gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
