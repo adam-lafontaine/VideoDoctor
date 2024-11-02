@@ -410,6 +410,16 @@ namespace internal
             0.9f, 0.9999f,
             "%6.4f"
         );
+
+        if (ImGui::Button("Reset##motion_detection_settings"))
+        {
+            state.motion_on = true;
+            state.motion_x_on = true;
+            state.motion_y_on = true;
+            state.show_motion = true;
+            state.edge_motion.motion_sensitivity = 0.9f;
+            state.edge_motion.locate_sensitivity = 0.98;
+        }
     }
 
 
@@ -450,6 +460,15 @@ namespace internal
 
         scan_region.y_begin = (u32)y_begin;
         scan_region.y_end = (u32)y_end;
+
+        if (ImGui::Button("Reset##scan_region_settings"))
+        {
+            state.show_scan_region = true;
+            scan_region.x_begin = (u32)x_min;
+            scan_region.x_end = (u32)x_max;
+            scan_region.y_begin = (u32)y_min;
+            scan_region.y_end = (u32)y_max;
+        }
     }
 
 
@@ -542,6 +561,15 @@ namespace internal
         else if (y_end > e)
         {
             dst_region.y_end = (u32)num::min(y_end, src_height);
+        }
+
+        if (ImGui::Button("Reset##display_region_settings"))
+        {
+            state.show_dst_region = true;
+            dst_region.x_begin = (u32)x_min;
+            dst_region.x_end = (u32)x_max;
+            dst_region.y_begin = (u32)y_min;
+            dst_region.y_end = (u32)y_max;
         }
     }
 }
