@@ -170,7 +170,7 @@ static void render_imgui_frame()
 static bool main_init()
 {
     ui_state.window_title = "Motion Detect";
-    ui_state.window_width = 1280;
+    ui_state.window_width = 1350;
     ui_state.window_height = 900;
 
     if (!ui::init(ui_state))

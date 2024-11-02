@@ -478,6 +478,30 @@ namespace image
 }
 
 
+/* draw */
+
+namespace image
+{
+    void draw_rect(ImageView const& view, Rect2Du32 const& rect, Pixel color, u32 thick)
+    {
+        auto region = sub_view(view, rect);
+        auto w = region.width;
+        auto h = region.height;
+        auto t = thick;
+
+        auto top    = make_rect(0,     0,     w, t);
+        auto bottom = make_rect(0,     h - t, w, t);
+        auto left   = make_rect(0,     t,     t, h - 2 * t);
+        auto right  = make_rect(w - t, t,     t, h - 2 * t);
+
+        fill(sub_view(region, top), color);
+        fill(sub_view(region, bottom), color);
+        fill(sub_view(region, left), color);
+        fill(sub_view(region, right), color);
+    }
+}
+
+
 /* convolve */
 
 namespace image

@@ -389,6 +389,14 @@ namespace image
 }
 
 
+/* draw */
+
+namespace image
+{
+    void draw_rect(ImageView const& view, Rect2Du32 const& rect, Pixel color, u32 thick);
+}
+
+
 /* gradients */
 
 namespace image

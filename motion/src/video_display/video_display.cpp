@@ -234,6 +234,17 @@ namespace internal
     }
 
 
+    static Rect2Du32 rect_scale_down(Rect2Du32 rect, u32 scale)
+    {
+        rect.x_begin /= scale;
+        rect.x_end /= scale;
+        rect.y_begin /= scale;
+        rect.y_end /= scale;
+
+        return rect;
+    }
+
+
     static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
         auto src_gray = vid::frame_gray_view(state.src_video);
@@ -246,19 +257,31 @@ namespace internal
         motion::update(state.edge_motion, proc_edges, proc_motion);
 
         constexpr auto motion_scale = SRC_VIDEO_WIDTH / MOTION_WIDTH;
+        constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
 
         state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
         update_display_position(state);
+        auto display_rect = get_crop_rect(state.display_position);
         
-        img::copy(img::sub_view(vid::frame_view(state.src_video), get_crop_rect(state.display_position)),  dst);
+        img::copy(img::sub_view(vid::frame_view(state.src_video), display_rect), dst);
         
         img::map_scale_up(state.proc_gray_view, state.display_gray_view);
         img::map_scale_up(state.proc_edges_view, state.display_edges_view);
         img::map_scale_up(state.proc_motion_view, state.display_motion_view);
-
-        img::map_scale_down(src_gray, state.display_vfx_view);
+        
         // TODO: add overlays
+        constexpr auto blue = img::to_pixel(0, 0, 255);
+        constexpr auto green = img::to_pixel(0, 255, 0);
+        u32 line_th = 4;
+
+        auto vfx_scan_rect = rect_scale_down(state.src_scan_region, display_scale);
+        auto vfx_display_rect = rect_scale_down(display_rect, display_scale);
+
+        img::map_scale_up(state.proc_gray_view, state.vfx_view);
+        img::draw_rect(state.vfx_view, vfx_scan_rect, blue, line_th);
+        img::draw_rect(state.vfx_view, vfx_display_rect, green, line_th);
+        img::copy(state.vfx_view, state.display_vfx_view);
     }
 
     

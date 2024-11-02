@@ -68,8 +68,8 @@ namespace video_display
 
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
-
         img::GrayView proc_motion_view;
+        img::ImageView vfx_view;
         
         vid::FrameRGBA display_src_frame;
         vid::FrameRGBA display_preview_frame;
@@ -105,6 +105,9 @@ namespace video_display
         bool motion_on;
         bool motion_x_on;
         bool motion_y_on;
+
+        Rect2Du32 src_display_region;
+        Rect2Du32 src_scan_region;
 
     };
 }
@@ -148,7 +151,7 @@ namespace video_display
         state.display_src_view = state.display_src_frame.view;
         state.display_preview_view = state.display_preview_frame.view;
 
-        auto n_pixels32 = display_w * display_h * 4;
+        auto n_pixels32 = display_w * display_h * 5;
         auto n_pixels8 = process_w * process_h * 3;
 
         state.buffer32 = img::create_buffer32(n_pixels32, "buffer32");
@@ -170,6 +173,7 @@ namespace video_display
         state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_motion_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_vfx_view = img::make_view(display_w, display_h, state.buffer32);
+        state.vfx_view = img::make_view(display_w, display_h, state.buffer32);
 
         state.proc_gray_view = img::make_view(process_w, process_h, state.buffer8);
         state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
@@ -191,6 +195,10 @@ namespace video_display
         state.motion_on = true;
         state.motion_x_on = true;
         state.motion_y_on = true;
+
+        state.src_display_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        state.src_scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        
 
         return true;
     }    
