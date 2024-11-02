@@ -211,7 +211,7 @@ namespace internal
     }
 
 
-    static void update_display_position(DisplayState& state)
+    static void update_dst_position(DisplayState& state)
     {
         if (!state.motion_on)
         {
@@ -221,7 +221,7 @@ namespace internal
         auto acc = 0.08f;
 
         auto fp = vec::to_f32(state.feature_position);
-        auto dp = vec::to_f32(state.display_position);
+        auto dp = vec::to_f32(state.dst_position);
 
         auto d_px = vec::sub(fp, dp);
         auto v_px = vec::mul(d_px, acc);
@@ -230,12 +230,12 @@ namespace internal
 
         if (state.motion_x_on)
         {
-            state.display_position.x = pos.x;
+            state.dst_position.x = pos.x;
         }
 
         if (state.motion_y_on)
         {
-            state.display_position.y = pos.y;
+            state.dst_position.y = pos.y;
         }
     }
 
@@ -270,10 +270,10 @@ namespace internal
         motion::update(state.edge_motion, proc_edges, proc_scan_rect, proc_motion);
         state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
-        update_display_position(state);
-        auto display_rect = get_crop_rect(state.display_position, dst.width, dst.height, state.src_display_region);
+        update_dst_position(state);
+        auto dst_rect = get_crop_rect(state.dst_position, dst.width, dst.height, state.src_dst_region);
         
-        img::copy(img::sub_view(vid::frame_view(state.src_video), display_rect), dst);
+        img::copy(img::sub_view(vid::frame_view(state.src_video), dst_rect), dst);
         
         img::map_scale_up(proc_gray, state.display_gray_view);
         img::map_scale_up(proc_edges, state.display_edges_view);
@@ -296,9 +296,9 @@ namespace internal
             img::map_scale_up(proc_gray, state.vfx_view);
         }
 
-        if (state.show_display_region)
+        if (state.show_dst_region)
         {
-            auto rect = rect_scale_down(state.src_display_region, display_scale);
+            auto rect = rect_scale_down(state.src_dst_region, display_scale);
             img::draw_rect(state.vfx_view, rect, dark_green, line_th);
         }
 
@@ -308,9 +308,9 @@ namespace internal
             img::draw_rect(state.vfx_view, rect, red, line_th);
         }
 
-        if (state.show_display_region)
+        if (state.show_dst_region)
         {
-            auto rect = rect_scale_down(display_rect, display_scale);
+            auto rect = rect_scale_down(dst_rect, display_scale);
             img::draw_rect(state.vfx_view, rect, green, line_th);
         }
 
@@ -379,6 +379,170 @@ namespace internal
 
         std::thread th(play);
         th.detach();
+    }
+    
+
+    void motion_detection_settings(DisplayState& state)
+    {
+        ImGui::SeparatorText("Motion Detection");
+
+        ImGui::Checkbox("ON/OFF", &state.motion_on);
+
+        ImGui::SameLine();
+        ImGui::Checkbox("X", &state.motion_x_on);
+
+        ImGui::SameLine();
+        ImGui::Checkbox("Y", &state.motion_y_on);
+
+        ImGui::Checkbox("Show motion", &state.show_motion);
+
+        ImGui::Text("Sensitivity");
+        ImGui::SliderFloat(
+            "Motion##Slider",
+            &state.edge_motion.motion_sensitivity,
+            0.5f, 0.9999f,
+            "%6.4f"
+        );
+
+        ImGui::SliderFloat(
+            "Locate",
+            &state.edge_motion.locate_sensitivity,
+            0.9f, 0.9999f,
+            "%6.4f"
+        );
+    }
+
+
+    void scan_region_settings(DisplayState& state)
+    {
+        ImGui::SeparatorText("Scan Region");
+
+        ImGui::Checkbox("Show scan region", &state.show_scan_region);
+
+        auto& scan_region = state.src_scan_region;
+
+        int x_begin = scan_region.x_begin;
+        int x_end = scan_region.x_end;
+        int x_min = 0;
+        int x_max = state.src_video.frame_width;
+
+        ImGui::DragIntRange2(
+            "Scan X", 
+            &x_begin, &x_end, 
+            4, 
+            x_min, x_max, 
+            "Min: %d", "Max: %d");
+        
+        scan_region.x_begin = (u32)x_begin;
+        scan_region.x_end = (u32)x_end;
+
+        int y_begin = scan_region.y_begin;
+        int y_end = scan_region.y_end;
+        int y_min = 0;
+        int y_max = state.src_video.frame_height;
+
+        ImGui::DragIntRange2(
+            "Scan Y", 
+            &y_begin, &y_end, 
+            4, 
+            y_min, y_max, 
+            "Min: %d", "Max: %d");
+
+        scan_region.y_begin = (u32)y_begin;
+        scan_region.y_end = (u32)y_end;
+    }
+
+
+    void display_region_settings(DisplayState& state)
+    {
+        ImGui::SeparatorText("Display Region");
+
+        ImGui::Checkbox("Show display region", &state.show_dst_region);
+
+        auto& dst_region = state.src_dst_region;
+
+        int src_width = state.src_video.frame_width;
+        int src_height = state.src_video.frame_height;
+
+        if (!src_width)
+        {
+            return;
+        }
+
+        int dst_width = state.dst_frame.view.width;
+        int dst_height = state.dst_frame.view.height;
+
+        static int x_begin;
+        static int x_end;
+
+        x_begin = dst_region.x_begin;
+        x_end = dst_region.x_end;
+
+        int x_min = 0;
+        int x_max = src_width;
+
+        int b = x_begin;
+        int e = x_end;
+
+        ImGui::DragIntRange2(
+            "Display X", 
+            &x_begin, &x_end, 
+            4, 
+            x_min, x_max, 
+            "Min: %d", "Max: %d");
+        
+        if (x_begin < b)
+        {
+            dst_region.x_begin = (u32)num::max(0, x_begin);
+        }
+        else if (x_begin > b)
+        {
+            dst_region.x_begin = (u32)num::clamp(x_begin, 0, x_end - dst_width);
+        }
+        else if (x_end < e)
+        {
+            dst_region.x_end = (u32)num::clamp(x_end, x_begin + dst_width, src_width);
+        }
+        else if (x_end > e)
+        {
+            dst_region.x_end = (u32)num::min(x_end, src_width);
+        }
+
+        static int y_begin;
+        static int y_end;
+
+        y_begin = dst_region.y_begin;
+        y_end = dst_region.y_end;
+
+        int y_min = 0;
+        int y_max = src_height;
+
+        b = y_begin;
+        e = y_end;
+
+        ImGui::DragIntRange2(
+            "Display Y", 
+            &y_begin, &y_end, 
+            4, 
+            y_min, y_max, 
+            "Min: %d", "Max: %d");
+
+        if (y_begin < b)
+        {
+            dst_region.y_begin = (u32)num::max(0, y_begin);
+        }
+        else if (y_begin > b)
+        {
+            dst_region.y_begin = (u32)num::clamp(y_begin, 0, y_end - dst_height);
+        }
+        else if (y_end < e)
+        {
+            dst_region.y_end = (u32)num::clamp(y_end, y_begin + dst_height, src_height);
+        }
+        else if (y_end > e)
+        {
+            dst_region.y_end = (u32)num::min(y_end, src_height);
+        }
     }
 }
 }

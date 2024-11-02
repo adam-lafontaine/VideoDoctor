@@ -93,7 +93,7 @@ namespace video_display
 
         motion::GrayMotion edge_motion;
         Point2Du32 feature_position;
-        Point2Du32 display_position;
+        Point2Du32 dst_position;
 
         fs::path src_video_filepath;
         ImGui::FileBrowser fb_video;
@@ -108,9 +108,9 @@ namespace video_display
 
         bool show_motion;
         bool show_scan_region;
-        bool show_display_region;
+        bool show_dst_region;
 
-        Rect2Du32 src_display_region;
+        Rect2Du32 src_dst_region;
         Rect2Du32 src_scan_region;
 
     };
@@ -189,7 +189,7 @@ namespace video_display
         }
 
         state.feature_position = SRC_CENTER_POS;
-        state.display_position = SRC_CENTER_POS;
+        state.dst_position = SRC_CENTER_POS;
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
@@ -202,9 +202,9 @@ namespace video_display
 
         state.show_motion = true;
         state.show_scan_region = true;
-        state.show_display_region = true;
+        state.show_dst_region = true;
 
-        state.src_display_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        state.src_dst_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
         state.src_scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
         
 
@@ -230,121 +230,16 @@ namespace internal
         vid::close_video(state.src_video);
     }
 
-
-    static void motion_detection_settings(DisplayState& state)
-    {
-        ImGui::SeparatorText("Motion Detection");
-
-        ImGui::Checkbox("ON/OFF", &state.motion_on);
-
-        ImGui::SameLine();
-        ImGui::Checkbox("X", &state.motion_x_on);
-
-        ImGui::SameLine();
-        ImGui::Checkbox("Y", &state.motion_y_on);
-
-        ImGui::Checkbox("Show motion", &state.show_motion);
-
-        ImGui::Text("Sensitivity");
-        ImGui::SliderFloat(
-            "Motion##Slider",
-            &state.edge_motion.motion_sensitivity,
-            0.5f, 0.9999f,
-            "%6.4f"
-        );
-
-        ImGui::SliderFloat(
-            "Locate",
-            &state.edge_motion.locate_sensitivity,
-            0.9f, 0.9999f,
-            "%6.4f"
-        );
-    }
-
-
-    static void scan_region_settings(DisplayState& state)
-    {
-        ImGui::SeparatorText("Scan Region");
-
-        ImGui::Checkbox("Show scan region", &state.show_scan_region);
-
-        auto& scan_region = state.src_scan_region;
-
-        int scan_x_begin = scan_region.x_begin;
-        int scan_x_end = scan_region.x_end;
-        int scan_x_min = 0;
-        int scan_x_max = state.src_video.frame_width;
-
-        ImGui::DragIntRange2(
-            "Scan X", 
-            &scan_x_begin, &scan_x_end, 
-            4, 
-            scan_x_min, scan_x_max, 
-            "Min: %d", "Max: %d");
-        
-        scan_region.x_begin = (u32)scan_x_begin;
-        scan_region.x_end = (u32)scan_x_end;
-
-        int scan_y_begin = scan_region.y_begin;
-        int scan_y_end = scan_region.y_end;
-        int scan_y_min = 0;
-        int scan_y_max = state.src_video.frame_height;
-
-        ImGui::DragIntRange2(
-            "Scan Y", 
-            &scan_y_begin, &scan_y_end, 
-            4, 
-            scan_y_min, scan_y_max, 
-            "Min: %d", "Max: %d");
-
-        scan_region.y_begin = (u32)scan_y_begin;
-        scan_region.y_end = (u32)scan_y_end;
-    }
-
-
-    static void display_region_settings(DisplayState& state)
-    {
-        ImGui::SeparatorText("Display Region");
-
-        ImGui::Checkbox("Show display region", &state.show_display_region);
-
-        auto& disp_region = state.src_display_region;
-
-        int disp_x_begin = disp_region.x_begin;
-        int disp_x_end = disp_region.x_end;
-        int disp_x_min = 0;
-        int disp_x_max = state.src_video.frame_width;
-
-        ImGui::DragIntRange2(
-            "Display X", 
-            &disp_x_begin, &disp_x_end, 
-            4, 
-            disp_x_min, disp_x_max, 
-            "Min: %d", "Max: %d");
-        
-        disp_region.x_begin = (u32)disp_x_begin;
-        disp_region.x_end = (u32)disp_x_end;
-
-        int disp_y_begin = disp_region.y_begin;
-        int disp_y_end = disp_region.y_end;
-        int disp_y_min = 0;
-        int disp_y_max = state.src_video.frame_height;
-
-        ImGui::DragIntRange2(
-            "Display Y", 
-            &disp_y_begin, &disp_y_end, 
-            4, 
-            disp_y_min, disp_y_max, 
-            "Min: %d", "Max: %d");
-
-        disp_region.y_begin = (u32)disp_y_begin;
-        disp_region.y_end = (u32)disp_y_end;
-    }
-    
     
     void load_video_async(DisplayState& state);
 
     void process_video_async(DisplayState& state);
+
+    void motion_detection_settings(DisplayState& state);
+
+    void scan_region_settings(DisplayState& state);
+
+    void display_region_settings(DisplayState& state);
 }
 }
 
