@@ -185,21 +185,27 @@ namespace internal
     }
 
 
-    static Rect2Du32 get_crop_rect(Point2Du32 pt)
+    static Rect2Du32 get_crop_rect(Point2Du32 pt, u32 crop_w, u32 crop_h, Rect2Du32 bounds)
     {
-        constexpr auto x_min = (SRC_VIDEO_WIDTH - DST_VIDEO_WIDTH) / 2;
-        constexpr auto y_min = (SRC_VIDEO_HEIGHT - DST_VIDEO_HEIGHT) / 2;
-        constexpr auto x_max = SRC_VIDEO_WIDTH - x_min;
-        constexpr auto y_max = SRC_VIDEO_HEIGHT - y_min;
+        auto w = bounds.x_end - bounds.x_begin;
+        auto h = bounds.y_end - bounds.y_begin;
+
+        auto w2 = crop_w / 2;
+        auto h2 = crop_h / 2;
+
+        auto x_min = bounds.x_begin + w2;
+        auto y_min = bounds.y_begin + h2;
+        auto x_max = bounds.x_end - w2;
+        auto y_max = bounds.y_end - h2;
 
         auto x = num::clamp(pt.x, x_min, x_max);
         auto y = num::clamp(pt.y, y_min, y_max);
 
         Rect2Du32 r{};
-        r.x_begin = x - DST_VIDEO_WIDTH / 2;
-        r.x_end = r.x_begin + DST_VIDEO_WIDTH;
-        r.y_begin = y - DST_VIDEO_HEIGHT / 2;
-        r.y_end = r.y_begin + DST_VIDEO_HEIGHT;
+        r.x_begin = x - w2;
+        r.x_end   = r.x_begin + crop_w;
+        r.y_begin = y - h2;
+        r.y_end   = r.y_begin + crop_h;
 
         return r;
     }
@@ -265,7 +271,7 @@ namespace internal
         state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
         update_display_position(state);
-        auto display_rect = get_crop_rect(state.display_position);
+        auto display_rect = get_crop_rect(state.display_position, dst.width, dst.height, state.src_display_region);
         
         img::copy(img::sub_view(vid::frame_view(state.src_video), display_rect), dst);
         
@@ -276,6 +282,7 @@ namespace internal
         // TODO: add overlays
         constexpr auto blue = img::to_pixel(0, 0, 255);
         constexpr auto green = img::to_pixel(0, 255, 0);
+        constexpr auto dark_green = img::to_pixel(0, 100, 0);
         constexpr auto red = img::to_pixel(255, 0, 0);
         u32 line_th = 4;        
 
@@ -289,16 +296,22 @@ namespace internal
             img::map_scale_up(proc_gray, state.vfx_view);
         }
 
+        if (state.show_display_region)
+        {
+            auto rect = rect_scale_down(state.src_display_region, display_scale);
+            img::draw_rect(state.vfx_view, rect, dark_green, line_th);
+        }
+
         if (state.show_scan_region)
         {
-            auto vfx_scan_rect = rect_scale_down(state.src_scan_region, display_scale);
-            img::draw_rect(state.vfx_view, vfx_scan_rect, red, line_th);
+            auto rect = rect_scale_down(state.src_scan_region, display_scale);
+            img::draw_rect(state.vfx_view, rect, red, line_th);
         }
 
         if (state.show_display_region)
         {
-            auto vfx_display_rect = rect_scale_down(display_rect, display_scale);
-            img::draw_rect(state.vfx_view, vfx_display_rect, green, line_th);
+            auto rect = rect_scale_down(display_rect, display_scale);
+            img::draw_rect(state.vfx_view, rect, green, line_th);
         }
 
         img::copy(state.vfx_view, state.display_vfx_view);
