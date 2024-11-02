@@ -373,6 +373,8 @@ namespace image
 
     void scale_down(GrayView const& src, GrayView const& dst);
 
+    void scale_down(GraySubView const& src, GrayView const& dst);
+
     void scale_up(ImageView const& src, ImageView const& dst);
 
     void scale_up(GrayView const& src, GrayView const& dst);
@@ -414,4 +416,6 @@ namespace image
 namespace image
 {
     Point2Du32 centroid(GrayView const& src, Point2Du32 default_pt, f32 sensitivity);
+
+    Point2Du32 centroid(GraySubView const& src, Point2Du32 default_pt, f32 sensitivity);
 }

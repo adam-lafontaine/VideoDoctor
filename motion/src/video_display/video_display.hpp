@@ -106,6 +106,10 @@ namespace video_display
         bool motion_x_on;
         bool motion_y_on;
 
+        bool show_motion;
+        bool show_scan_region;
+        bool show_display_region;
+
         Rect2Du32 src_display_region;
         Rect2Du32 src_scan_region;
 
@@ -195,6 +199,10 @@ namespace video_display
         state.motion_on = true;
         state.motion_x_on = true;
         state.motion_y_on = true;
+
+        state.show_motion = true;
+        state.show_scan_region = true;
+        state.show_display_region = true;
 
         state.src_display_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
         state.src_scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
@@ -317,9 +325,6 @@ namespace video_display
 
         ImGui::Image(texture, dims);
 
-        //auto w = state.dst_video.frame_width;
-        //auto h = state.dst_video.frame_height;
-
         auto w = state.dst_frame.view.width;
         auto h = state.dst_frame.view.height;
 
@@ -379,7 +384,7 @@ namespace video_display
         ImGui::End();
     }
 
-
+    
     void video_vfx_window(DisplayState& state)
     {
         auto src_w = state.src_video.frame_width;
@@ -388,17 +393,15 @@ namespace video_display
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_vfx_texture;
 
-        auto motion_xy_disabled = !state.motion_on;
-
         ImGui::Begin("VFX");
 
         ImGui::Image(texture, dims);
 
         ImGui::Text("%ux%u", src_w, src_h);
 
-        ImGui::Checkbox("Detect motion", &state.motion_on);
+        ImGui::SeparatorText("Motion Detection");
 
-        if (motion_xy_disabled) { ImGui::BeginDisabled(); }
+        ImGui::Checkbox("ON/OFF", &state.motion_on);
 
         ImGui::SameLine();
         ImGui::Checkbox("X", &state.motion_x_on);
@@ -406,22 +409,63 @@ namespace video_display
         ImGui::SameLine();
         ImGui::Checkbox("Y", &state.motion_y_on);
 
-        if (motion_xy_disabled) { ImGui::EndDisabled(); }
-
-        ImGui::Text("Sensitivity");
+        ImGui::SeparatorText("Sensitivity");
         ImGui::SliderFloat(
-            "Motion Sensitivity",
+            "Motion##Slider",
             &state.edge_motion.motion_sensitivity,
             0.5f, 0.9999f,
             "%6.4f"
         );
 
         ImGui::SliderFloat(
-            "Location sensitivity",
-            &state.edge_motion.location_sensitivity,
+            "Locate",
+            &state.edge_motion.locate_sensitivity,
             0.9f, 0.9999f,
             "%6.4f"
         );
+
+        ImGui::SeparatorText("Display");
+
+        ImGui::Checkbox("Motion", &state.show_motion);
+
+        ImGui::Checkbox("Scan Region", &state.show_scan_region);
+
+        auto& scan_region = state.src_scan_region;
+
+        int scan_x_begin = scan_region.x_begin;
+        int scan_x_end = scan_region.x_end;
+        int scan_x_min = 0;
+        int scan_x_max = state.src_video.frame_width;
+
+        ImGui::DragIntRange2(
+            "Scan X", 
+            &scan_x_begin, &scan_x_end, 
+            4, 
+            scan_x_min, scan_x_max, 
+            "Min: %d", "Max: %d");
+        
+        scan_region.x_begin = (u32)scan_x_begin;
+        scan_region.x_end = (u32)scan_x_end;
+
+        int scan_y_begin = scan_region.y_begin;
+        int scan_y_end = scan_region.y_end;
+        int scan_y_min = 0;
+        int scan_y_max = state.src_video.frame_height;
+
+        ImGui::DragIntRange2(
+            "Scan Y", 
+            &scan_y_begin, &scan_y_end, 
+            4, 
+            scan_y_min, scan_y_max, 
+            "Min: %d", "Max: %d");
+
+        scan_region.y_begin = (u32)scan_y_begin;
+        scan_region.y_end = (u32)scan_y_end;
+
+
+        ImGui::Checkbox("Display Region", &state.show_display_region);
+
+        
 
         ImGui::End();
     }

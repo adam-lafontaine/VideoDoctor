@@ -59,6 +59,17 @@ namespace motion
 
         return m * x + b;
     }
+
+
+    static Rect2Du32 rect_scale_down(Rect2Du32 rect, u32 scale)
+    {
+        rect.x_begin /= scale;
+        rect.x_end /= scale;
+        rect.y_begin /= scale;
+        rect.y_end /= scale;
+
+        return rect;
+    }
 }
 
 
@@ -116,7 +127,7 @@ namespace motion
 
         auto loc_base = 0.5f;
 
-        auto loc_s = mot.location_sensitivity;
+        auto loc_s = mot.locate_sensitivity;
 
         auto const abs_avg_delta = [&](u8 v, f32 t)
         {
@@ -139,12 +150,64 @@ namespace motion
         span::transform(v, f, val_to_f32);
         span::add(t, f, t);
         next(mot);
+    }    
+
+
+    void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 scan_rect)
+    {
+        constexpr auto i_count = 1.0f / GrayMotion::count;
+
+        auto thresh = (1.0f - map_f(mot.motion_sensitivity)) * 255;
+
+        auto loc_base = 0.5f;
+
+        auto loc_s = mot.locate_sensitivity;
+
+        auto const abs_avg_delta = [&](u8 v, f32 t)
+        {
+            return num::abs(t * i_count - v) >= thresh ? 255 : 0; 
+        };
+
+        auto const val_to_f32 = [](u8 v) { return (f32)v; };
+
+        auto t = img::to_span(mot.totals);
+        auto f = img::to_span(front(mot));
+        auto v = img::to_span(mot.values);
+        auto o = img::to_span(mot.out);
+
+        img::scale_down(src, mot.values);
+        span::transform(v, t, o, abs_avg_delta);
+
+        auto scale = src.width / mot.values.width;
+        auto rect = rect_scale_down(scan_rect, scale);
+
+        Point2Du32 pt = {
+            mot.location.x - rect.x_begin,
+            mot.location.y - rect.y_begin
+        };
+
+        pt = img::centroid(img::sub_view(mot.out, rect), pt, loc_s);
+
+        mot.location.x = pt.x + rect.x_begin;
+        mot.location.y = pt.y + rect.y_begin;
+
+        span::sub(t, f, t);
+        span::transform(v, f, val_to_f32);
+        span::add(t, f, t);
+        next(mot);
     }
 
 
     void update(GrayMotion& mot, img::GrayView const& src, img::GrayView const& dst)
     {
         update(mot, src);
+        img::scale_up(mot.out, dst);
+    }
+
+
+    void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 scan_rect, img::GrayView const& dst)
+    {
+        update(mot, src, scan_rect);
         img::scale_up(mot.out, dst);
     }
 

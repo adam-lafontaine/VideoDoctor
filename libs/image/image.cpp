@@ -300,6 +300,8 @@ namespace image
 }
 
 
+/* resize */
+
 namespace image
 {
     void scale_down(ImageView const& src, ImageView const& dst)
@@ -353,16 +355,9 @@ namespace image
     }
 
 
-    void scale_down(GrayView const& src, GrayView const& dst)
+    template <class SRC, class DST>
+    static void scale_down_gray(SRC const& src, DST const& dst, u32 scale)
     {
-        auto scale = src.width / dst.width;
-
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(src.width == scale * dst.width);
-        assert(src.height == scale * dst.height);
-        assert(scale > 1);
-        
         f32 const i_scale = 1.0f / (scale * scale);
 
         f32 gray = 0.0f;
@@ -391,6 +386,34 @@ namespace image
                 rd[xd] = (u8)gray;
             }
         }
+    }
+
+
+    void scale_down(GrayView const& src, GrayView const& dst)
+    {
+        auto scale = src.width / dst.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        scale_down_gray(src, dst, scale);
+    }
+
+
+    void scale_down(GraySubView const& src, GrayView const& dst)
+    {
+        auto scale = src.width / dst.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        scale_down_gray(src, dst, scale);
     }
 
 
@@ -677,7 +700,8 @@ namespace image
 
 namespace image
 {
-    Point2Du32 centroid(GrayView const& src, Point2Du32 default_pt, f32 sensitivity)
+    template <class VIEW>
+    Point2Du32 centroid_gray(VIEW const& src, Point2Du32 default_pt, f32 sensitivity)
 	{	
 		f64 total = 0.0;
 		f64 x_total = 0.0;
@@ -717,10 +741,22 @@ namespace image
 	}
 
 
+    Point2Du32 centroid(GrayView const& src, Point2Du32 default_pt, f32 sensitivity)
+    {
+        return centroid_gray(src, default_pt, sensitivity);
+    }
+
+
     Point2Du32 centroid(GrayView const& src, f32 sensitivity)
 	{	
 		Point2Du32 default_pt = { src.width / 2, src.height / 2 };
 
-        return centroid(src, default_pt, sensitivity);
+        return centroid_gray(src, default_pt, sensitivity);
 	}
+
+
+    Point2Du32 centroid(GraySubView const& src, Point2Du32 default_pt, f32 sensitivity)
+    {
+        return centroid_gray(src, default_pt, sensitivity);
+    }
 }

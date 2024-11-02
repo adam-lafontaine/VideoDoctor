@@ -247,6 +247,10 @@ namespace internal
 
     static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
     {
+        constexpr auto motion_scale = SRC_VIDEO_WIDTH / MOTION_WIDTH;
+        constexpr auto proc_scale = SRC_VIDEO_WIDTH / PROC_IMAGE_WIDTH;
+        constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
+
         auto src_gray = vid::frame_gray_view(state.src_video);
         auto& proc_gray = state.proc_gray_view;
         auto& proc_edges = state.proc_edges_view;
@@ -254,11 +258,10 @@ namespace internal
 
         img::scale_down(src_gray, proc_gray);
         img::gradients(proc_gray, proc_edges);
-        motion::update(state.edge_motion, proc_edges, proc_motion);
 
-        constexpr auto motion_scale = SRC_VIDEO_WIDTH / MOTION_WIDTH;
-        constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
+        auto proc_scan_rect = rect_scale_down(state.src_scan_region, proc_scale);
 
+        motion::update(state.edge_motion, proc_edges, proc_scan_rect, proc_motion);
         state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
         update_display_position(state);
@@ -266,26 +269,38 @@ namespace internal
         
         img::copy(img::sub_view(vid::frame_view(state.src_video), display_rect), dst);
         
-        img::map_scale_up(state.proc_gray_view, state.display_gray_view);
-        img::map_scale_up(state.proc_edges_view, state.display_edges_view);
-        img::map_scale_up(state.proc_motion_view, state.display_motion_view);
+        img::map_scale_up(proc_gray, state.display_gray_view);
+        img::map_scale_up(proc_edges, state.display_edges_view);
+        img::map_scale_up(proc_motion, state.display_motion_view);
         
         // TODO: add overlays
         constexpr auto blue = img::to_pixel(0, 0, 255);
         constexpr auto green = img::to_pixel(0, 255, 0);
         constexpr auto red = img::to_pixel(255, 0, 0);
-        u32 line_th = 4;
+        u32 line_th = 4;        
 
-        auto vfx_scan_rect = rect_scale_down(state.src_scan_region, display_scale);
-        auto vfx_display_rect = rect_scale_down(display_rect, display_scale);
+        if (state.show_motion)
+        {
+            auto const dm = [&](u8 d, u8 m){ return m ? blue : img::to_pixel(d); };
+            img::transform_scale_up(proc_gray, proc_motion, state.vfx_view, dm);
+        }
+        else
+        {
+            img::map_scale_up(proc_gray, state.vfx_view);
+        }
 
-        auto const dm = [&](u8 d, u8 m){ return m ? red : img::to_pixel(d); };
+        if (state.show_scan_region)
+        {
+            auto vfx_scan_rect = rect_scale_down(state.src_scan_region, display_scale);
+            img::draw_rect(state.vfx_view, vfx_scan_rect, red, line_th);
+        }
 
-        img::transform_scale_up(state.proc_gray_view, state.proc_motion_view, state.vfx_view, dm);
-        //img::map_scale_up(state.proc_gray_view, state.vfx_view);
+        if (state.show_display_region)
+        {
+            auto vfx_display_rect = rect_scale_down(display_rect, display_scale);
+            img::draw_rect(state.vfx_view, vfx_display_rect, green, line_th);
+        }
 
-        img::draw_rect(state.vfx_view, vfx_scan_rect, blue, line_th);
-        img::draw_rect(state.vfx_view, vfx_display_rect, green, line_th);
         img::copy(state.vfx_view, state.display_vfx_view);
     }
 
