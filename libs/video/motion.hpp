@@ -15,8 +15,8 @@ namespace motion
 
         constexpr static u32 count = 0b1000; // 30fps
 
-        f32 motion_sensitivity = 0.8f;
-        f32 locate_sensitivity = 0.95f;
+        f32 motion_sensitivity = 0.9f;
+        f32 locate_sensitivity = 0.98f;
 
         u32 index = 0;
 
@@ -42,7 +42,7 @@ namespace motion
     void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 scan_rect);
 
     void update(GrayMotion& mot, img::GrayView const& src, img::GrayView const& dst);
-    
+
     void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 scan_rect, img::GrayView const& dst);
 
     Point2Du32 scale_location(GrayMotion& mot, u32 scale);
