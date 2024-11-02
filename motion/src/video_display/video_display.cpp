@@ -273,12 +273,17 @@ namespace internal
         // TODO: add overlays
         constexpr auto blue = img::to_pixel(0, 0, 255);
         constexpr auto green = img::to_pixel(0, 255, 0);
+        constexpr auto red = img::to_pixel(255, 0, 0);
         u32 line_th = 4;
 
         auto vfx_scan_rect = rect_scale_down(state.src_scan_region, display_scale);
         auto vfx_display_rect = rect_scale_down(display_rect, display_scale);
 
-        img::map_scale_up(state.proc_gray_view, state.vfx_view);
+        auto const dm = [&](u8 d, u8 m){ return m ? red : img::to_pixel(d); };
+
+        img::transform_scale_up(state.proc_gray_view, state.proc_motion_view, state.vfx_view, dm);
+        //img::map_scale_up(state.proc_gray_view, state.vfx_view);
+
         img::draw_rect(state.vfx_view, vfx_scan_rect, blue, line_th);
         img::draw_rect(state.vfx_view, vfx_display_rect, green, line_th);
         img::copy(state.vfx_view, state.display_vfx_view);

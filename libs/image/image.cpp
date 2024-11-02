@@ -211,6 +211,92 @@ namespace image
 
         span::transform(to_span(src), to_span(dst), func);
     }
+
+
+    template <class SRC, class DST, class FN>
+    static void transform_scale_up(SRC const& src, DST const& dst, u32 scale, FN const& func)
+    {
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {
+                auto xd = scale * xs;
+                
+                auto p = func(rs[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rd = row_begin(dst, yd + v) + xd;
+                    for (u32 u = 0; u < scale; u++)
+                    {                        
+                        rd[u] = p;
+                    }
+                }
+            }
+        }
+    }
+
+
+    template <class SRC1, class SRC2, class DST, class FN>
+    static void transform_scale_up(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    {
+        for (u32 ys = 0; ys < src1.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs1 = row_begin(src1, ys);
+            auto rs2 = row_begin(src2, ys);
+
+            for (u32 xs = 0; xs < src1.width; xs++)
+            {
+                auto xd = scale * xs;
+                
+                auto p = func(rs1[xs], rs2[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rd = row_begin(dst, yd + v) + xd;
+                    for (u32 u = 0; u < scale; u++)
+                    {                        
+                        rd[u] = p;
+                    }
+                }
+            }
+        }
+    }
+
+
+    void transform_scale_up(GrayView const& src, ImageView const& dst, fn<Pixel(u8)> const& func)
+    {
+        auto scale = dst.width / src.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(dst.width == src.width * scale);
+        assert(dst.height == src.height * scale);
+        assert(scale > 1);
+
+        transform_scale_up(src, dst, scale, func);
+    }
+
+
+    void transform_scale_up(GrayView const& src1, GrayView const& src2, ImageView const& dst, fn<Pixel(u8, u8)> const& func)
+    {
+        auto scale = dst.width / src1.width;
+
+        assert(src1.matrix_data_);
+        assert(src2.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src1.width == src2.width);
+        assert(src1.height == src2.height);
+        assert(dst.width == src1.width * scale);
+        assert(dst.height == src1.height * scale);
+        assert(scale > 1);
+
+        transform_scale_up(src1, src2, dst, scale, func);
+    }
 }
 
 
@@ -453,27 +539,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        for (u32 ys = 0; ys < src.height; ys++)
-        {
-            auto yd = scale * ys;
-            auto rs = row_begin(src, ys);
-
-            for (u32 xs = 0; xs < src.width; xs++)
-            {
-                auto xd = scale * xs;
-                
-                auto p = to_pixel(rs[xs]);
-
-                for (u32 v = 0; v < scale; v++)
-                {
-                    auto rd = row_begin(dst, yd + v) + xd;
-                    for (u32 u = 0; u < scale; u++)
-                    {                        
-                        rd[u] = p;
-                    }
-                }
-            }
-        }
+        transform_scale_up(src, dst, scale, [](u8 p){ return to_pixel(p); });
     }
 }
 

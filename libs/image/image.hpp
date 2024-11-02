@@ -358,6 +358,10 @@ namespace image
 namespace image
 {
     void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func);
+
+    void transform_scale_up(GrayView const& src, ImageView const& dst, fn<Pixel(u8)> const& func);
+
+    void transform_scale_up(GrayView const& src1, GrayView const& src2, ImageView const& dst, fn<Pixel(u8, u8)> const& func);
 }
 
 
