@@ -218,12 +218,14 @@ namespace internal
             return;
         }
 
-        auto acc = 0.08f;
-
         auto fp = vec::to_f32(state.feature_position);
         auto dp = vec::to_f32(state.dst_position);
 
         auto d_px = vec::sub(fp, dp);
+
+        // TODO: make param
+        auto acc = 0.15f;
+
         auto v_px = vec::mul(d_px, acc);
 
         auto pos = vec::to_unsigned<u32>(vec::add(dp, v_px));
@@ -261,6 +263,7 @@ namespace internal
         auto& proc_gray = state.proc_gray_view;
         auto& proc_edges = state.proc_edges_view;
         auto& proc_motion = state.proc_motion_view;
+        auto& dst_rect = state.dst_region;
 
         img::scale_down(src_gray, proc_gray);
         img::gradients(proc_gray, proc_edges);
@@ -271,7 +274,7 @@ namespace internal
         state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
 
         update_dst_position(state);
-        auto dst_rect = get_crop_rect(state.dst_position, dst.width, dst.height, state.src_dst_region);
+        dst_rect = get_crop_rect(state.dst_position, dst.width, dst.height, state.src_dst_region);
         
         img::copy(img::sub_view(vid::frame_view(state.src_video), dst_rect), dst);
         
@@ -279,7 +282,6 @@ namespace internal
         img::map_scale_up(proc_edges, state.display_edges_view);
         img::map_scale_up(proc_motion, state.display_motion_view);
         
-        // TODO: add overlays
         constexpr auto blue = img::to_pixel(0, 0, 255);
         constexpr auto green = img::to_pixel(0, 255, 0);
         constexpr auto dark_green = img::to_pixel(0, 100, 0);
@@ -300,18 +302,15 @@ namespace internal
         {
             auto rect = rect_scale_down(state.src_dst_region, display_scale);
             img::draw_rect(state.vfx_view, rect, dark_green, line_th);
+
+            rect = rect_scale_down(dst_rect, display_scale);
+            img::draw_rect(state.vfx_view, rect, green, line_th);
         }
 
         if (state.show_scan_region)
         {
             auto rect = rect_scale_down(state.src_scan_region, display_scale);
             img::draw_rect(state.vfx_view, rect, red, line_th);
-        }
-
-        if (state.show_dst_region)
-        {
-            auto rect = rect_scale_down(dst_rect, display_scale);
-            img::draw_rect(state.vfx_view, rect, green, line_th);
         }
 
         img::copy(state.vfx_view, state.display_vfx_view);
@@ -429,12 +428,37 @@ namespace internal
 
         ImGui::Checkbox("Show scan region", &state.show_scan_region);
 
+        int src_width = state.src_video.frame_width;
+        int src_height = state.src_video.frame_height;
+
+        if (!src_width)
+        {
+            return;
+        }
+
+        static bool lock_to_display = false;
+
+        ImGui::Checkbox("Lock to display", &lock_to_display);
+
+        auto& dst_region = state.dst_region;
         auto& scan_region = state.src_scan_region;
+        
+        if (lock_to_display)
+        {
+            scan_region = dst_region;
+        }
 
         int x_begin = scan_region.x_begin;
         int x_end = scan_region.x_end;
         int x_min = 0;
-        int x_max = state.src_video.frame_width;
+        int x_max = src_width;
+
+        int y_begin = scan_region.y_begin;
+        int y_end = scan_region.y_end;
+        int y_min = 0;
+        int y_max = src_height;
+
+        if (lock_to_display) { ImGui::BeginDisabled(); }
 
         ImGui::DragIntRange2(
             "Scan X", 
@@ -442,14 +466,6 @@ namespace internal
             4, 
             x_min, x_max, 
             "Min: %d", "Max: %d");
-        
-        scan_region.x_begin = (u32)x_begin;
-        scan_region.x_end = (u32)x_end;
-
-        int y_begin = scan_region.y_begin;
-        int y_end = scan_region.y_end;
-        int y_min = 0;
-        int y_max = state.src_video.frame_height;
 
         ImGui::DragIntRange2(
             "Scan Y", 
@@ -458,9 +474,6 @@ namespace internal
             y_min, y_max, 
             "Min: %d", "Max: %d");
 
-        scan_region.y_begin = (u32)y_begin;
-        scan_region.y_end = (u32)y_end;
-
         if (ImGui::Button("Reset##scan_region_settings"))
         {
             state.show_scan_region = true;
@@ -468,6 +481,17 @@ namespace internal
             scan_region.x_end = (u32)x_max;
             scan_region.y_begin = (u32)y_min;
             scan_region.y_end = (u32)y_max;
+        }
+        
+        if (lock_to_display) { ImGui::EndDisabled(); }
+
+        if (!lock_to_display)
+        {
+            scan_region.x_begin = (u32)x_begin;
+            scan_region.x_end = (u32)x_end;
+
+            scan_region.y_begin = (u32)y_begin;
+            scan_region.y_end = (u32)y_end;
         }
     }
 
