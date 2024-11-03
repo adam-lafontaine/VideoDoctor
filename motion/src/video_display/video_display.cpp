@@ -224,7 +224,7 @@ namespace internal
         auto d_px = vec::sub(fp, dp);
 
         // TODO: make param
-        auto acc = 0.15f;
+        auto acc = state.dst_region_acc;
 
         auto v_px = vec::mul(d_px, acc);
 
@@ -410,6 +410,13 @@ namespace internal
             "%6.4f"
         );
 
+        ImGui::SliderFloat(
+            "Movement",
+            &state.dst_region_acc,
+            0.05f, 0.5f,
+            "%6.4f"
+        );
+
         if (ImGui::Button("Reset##motion_detection_settings"))
         {
             state.motion_on = true;
@@ -418,6 +425,7 @@ namespace internal
             state.show_motion = true;
             state.edge_motion.motion_sensitivity = 0.9f;
             state.edge_motion.locate_sensitivity = 0.98;
+            state.dst_region_acc = 0.15f;
         }
     }
 

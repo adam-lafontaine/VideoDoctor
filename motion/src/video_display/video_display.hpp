@@ -114,6 +114,8 @@ namespace video_display
         Rect2Du32 src_scan_region;
         Rect2Du32 dst_region;
 
+        f32 dst_region_acc;
+
     };
 }
 
@@ -204,6 +206,8 @@ namespace video_display
         state.show_motion = true;
         state.show_scan_region = true;
         state.show_dst_region = true;
+
+        state.dst_region_acc = 0.15f;
 
         state.src_dst_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
         state.src_scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
