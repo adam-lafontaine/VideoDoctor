@@ -383,14 +383,21 @@ namespace video
 
 
     template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&)>, std::function<bool()>
-    static void for_each_frame(VideoReaderContext const& ctx, FRAME_FN const& func, COND_FN const& cond)
+    static bool for_each_frame(VideoReaderContext const& ctx, FRAME_FN const& func, COND_FN const& cond)
     {
         auto packet = ctx.packet;
         auto decoder = ctx.codec_ctx;
         auto frame = ctx.frame_av;
         auto stream = ctx.stream;
 
-        while (cond() && av_read_frame(ctx.format_ctx, packet) >= 0) 
+        bool done = false;
+        auto const read = [&]()
+        { 
+            done = av_read_frame(ctx.format_ctx, packet) < 0;
+            return !done;
+        };
+
+        while (cond() && read()) 
         {
             if (packet->stream_index == stream->index) 
             {
@@ -407,18 +414,27 @@ namespace video
             }
             av_packet_unref(ctx.packet);
         }
+
+        return done;
     }
 
 
     template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&, VideoWriterContext const&)>, std::function<bool()>
-    static void for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func, COND_FN const& cond)
+    static bool for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func, COND_FN const& cond)
     {
         auto packet = src_ctx.packet;
         auto decoder = src_ctx.codec_ctx;
         auto frame = src_ctx.frame_av;
         auto stream = src_ctx.stream;
 
-        while (cond() && av_read_frame(src_ctx.format_ctx, packet) >= 0) 
+        bool done = false;
+        auto const read = [&]()
+        { 
+            done = av_read_frame(src_ctx.format_ctx, packet) < 0;
+            return !done;
+        };
+
+        while (cond() && read()) 
         {
             if (packet->stream_index == stream->index) 
             {
@@ -435,6 +451,8 @@ namespace video
             }
             av_packet_unref(packet);
         }
+
+        return done;
     }
 }
 
@@ -683,7 +701,7 @@ namespace video
     }
 
 
-    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
     {
         auto src_view = frame_gray_view(src);
         auto dst_view = dst.view;
@@ -705,7 +723,7 @@ namespace video
             }
         };
 
-        for_each_frame(get_context(src), proc, proc_cond);
+        return for_each_frame(get_context(src), proc, proc_cond);
     }
    
 
@@ -929,7 +947,7 @@ namespace video
     }
     
     
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
     {
         auto src_view = frame_gray_view(src);
         auto dst_view = frame_view(dst);
@@ -950,7 +968,7 @@ namespace video
             }
         };
 
-        for_each_frame(get_context(src), get_context(dst), proc, proc_cond);
+        return for_each_frame(get_context(src), get_context(dst), proc, proc_cond);
     }
 
 

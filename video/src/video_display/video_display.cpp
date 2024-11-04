@@ -345,8 +345,10 @@ namespace internal
 
         auto& src = state.vms.src_video;
 
-        vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames, cond);
-        //reset_video(state);
+        if (vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames, cond))
+        {
+            reset_video(state);
+        }
     }
 
 
