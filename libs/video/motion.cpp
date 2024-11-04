@@ -59,6 +59,26 @@ namespace motion
 
         return m * x + b;
     }
+
+
+    static Rect2Du32 rect_scale_down(Rect2Du32 rect, u32 scale)
+    {
+        rect.x_begin /= scale;
+        rect.x_end /= scale;
+        rect.y_begin /= scale;
+        rect.y_end /= scale;
+
+        return rect;
+    }
+
+
+    Point2Du32 scale_point_up(Point2Du32 pt, u32 scale)
+    {
+        return {
+            pt.x * scale,
+            pt.y * scale
+        };
+    }
 }
 
 
@@ -116,14 +136,12 @@ namespace motion
 
         auto loc_base = 0.5f;
 
-        auto loc_s = mot.location_sensitivity; // loc_base + map_f(mot.location_sensitivity) * (1.0f - loc_base);
+        auto loc_s = mot.locate_sensitivity;
 
         auto const abs_avg_delta = [&](u8 v, f32 t)
         {
             return num::abs(t * i_count - v) >= thresh ? 255 : 0; 
         };
-
-        auto const val_to_f32 = [](u8 v) { return (f32)v; };
 
         auto t = img::to_span(mot.totals);
         auto f = img::to_span(front(mot));
@@ -139,6 +157,49 @@ namespace motion
         span::transform(v, f, val_to_f32);
         span::add(t, f, t);
         next(mot);
+    }    
+
+
+    void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 scan_rect)
+    {
+        constexpr auto i_count = 1.0f / GrayMotion::count;
+
+        auto thresh = (1.0f - map_f(mot.motion_sensitivity)) * 255;
+
+        auto loc_base = 0.5f;
+
+        auto loc_s = mot.locate_sensitivity;
+
+        auto const abs_avg_delta = [&](u8 v, f32 t)
+        {
+            return num::abs(t * i_count - v) >= thresh ? 255 : 0; 
+        };
+
+        auto t = img::to_span(mot.totals);
+        auto f = img::to_span(front(mot));
+        auto v = img::to_span(mot.values);
+        auto o = img::to_span(mot.out);
+
+        img::scale_down(src, mot.values);
+        span::transform(v, t, o, abs_avg_delta);
+
+        auto scale = src.width / mot.values.width;
+        auto rect = rect_scale_down(scan_rect, scale);
+
+        Point2Du32 pt = {
+            mot.location.x - rect.x_begin,
+            mot.location.y - rect.y_begin
+        };
+
+        pt = img::centroid(img::sub_view(mot.out, rect), pt, loc_s);
+
+        mot.location.x = pt.x + rect.x_begin;
+        mot.location.y = pt.y + rect.y_begin;
+
+        span::sub(t, f, t);
+        span::transform(v, f, val_to_f32);
+        span::add(t, f, t);
+        next(mot);
     }
 
 
@@ -149,11 +210,61 @@ namespace motion
     }
 
 
-    Point2Du32 scale_location(GrayMotion& mot, u32 scale)
+    void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 src_scan_rect, img::GrayView const& dst)
     {
-        return {
-            mot.location.x * scale,
-            mot.location.y * scale
-        };
+        update(mot, src, src_scan_rect);
+        img::scale_up(mot.out, dst);
+    }
+}
+
+
+namespace motion
+{
+    bool create(GradientMotion& gm, u32 width, u32 height)
+    {
+        auto process_w = width;
+        auto process_h = height;
+        auto motion_w = process_w / 2;
+        auto motion_h = process_h / 2;
+
+        auto n_pixels8 = process_w * process_h * 3;
+
+        gm.buffer8 = img::create_buffer8(n_pixels8, "buffer8");
+        if (!gm.buffer8.ok)
+        {
+            return false;
+        }
+
+        mb::zero_buffer(gm.buffer8);
+
+        gm.proc_gray_view = img::make_view(process_w, process_h, gm.buffer8);
+        gm.proc_edges_view = img::make_view(process_w, process_h, gm.buffer8);
+        gm.proc_motion_view = img::make_view(process_w, process_h, gm.buffer8);
+
+        if (!motion::create(gm.edge_motion, motion_w, motion_h))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    void update(GradientMotion& gm, img::GrayView const& src_gray, Rect2Du32 src_scan_rect)
+    {
+        auto& gray = gm.proc_gray_view;
+        auto& edges = gm.proc_edges_view;
+        auto& motion = gm.proc_motion_view;
+
+        auto proc_scale = src_gray.width / gray.width;
+        auto motion_scale = src_gray.width / gm.edge_motion.out.width;
+
+        auto proc_scan_rect = rect_scale_down(src_scan_rect, proc_scale);
+
+        img::scale_down(src_gray, gray);
+        img::gradients(gray, edges);
+        update(gm.edge_motion, edges, proc_scan_rect, motion);
+
+        gm.src_location = scale_point_up(gm.edge_motion.location, motion_scale);
     }
 }

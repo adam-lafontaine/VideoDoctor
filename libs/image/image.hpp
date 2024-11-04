@@ -358,6 +358,10 @@ namespace image
 namespace image
 {
     void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func);
+
+    void transform_scale_up(GrayView const& src, ImageView const& dst, fn<Pixel(u8)> const& func);
+
+    void transform_scale_up(GrayView const& src1, GrayView const& src2, ImageView const& dst, fn<Pixel(u8, u8)> const& func);
 }
 
 
@@ -368,6 +372,8 @@ namespace image
     void scale_down(ImageView const& src, ImageView const& dst);
 
     void scale_down(GrayView const& src, GrayView const& dst);
+
+    void scale_down(GraySubView const& src, GrayView const& dst);
 
     void scale_up(ImageView const& src, ImageView const& dst);
 
@@ -383,7 +389,17 @@ namespace image
 {
     void map(GrayView const& src, ImageView const& dst);
 
+    void map_scale_down(GrayView const& src, ImageView const& dst);
+
     void map_scale_up(GrayView const& src, ImageView const& dst);
+}
+
+
+/* draw */
+
+namespace image
+{
+    void draw_rect(ImageView const& view, Rect2Du32 const& rect, Pixel color, u32 thick);
 }
 
 
@@ -400,4 +416,6 @@ namespace image
 namespace image
 {
     Point2Du32 centroid(GrayView const& src, Point2Du32 default_pt, f32 sensitivity);
+
+    Point2Du32 centroid(GraySubView const& src, Point2Du32 default_pt, f32 sensitivity);
 }
