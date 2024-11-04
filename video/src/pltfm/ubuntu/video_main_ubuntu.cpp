@@ -19,15 +19,12 @@ namespace
 
     vd::DisplayState vd_state;
 
-    constexpr u32 N_TEXTURES = 6;
+    constexpr u32 N_TEXTURES = 3;
     ogl::TextureList<N_TEXTURES> textures;
 
     constexpr ogl::TextureId video_src_texture_id     = { 0 };
     constexpr ogl::TextureId video_preview_texture_id = { 1 };
-    constexpr ogl::TextureId video_gray_texture_id    = { 2 };
-    constexpr ogl::TextureId video_edges_texture_id   = { 3 };
-    constexpr ogl::TextureId video_motion_texture_id  = { 4 };
-    constexpr ogl::TextureId video_vfx_texture_id     = { 5 };
+    constexpr ogl::TextureId video_vfx_texture_id     = { 2 };
 }
 
 
@@ -63,9 +60,6 @@ static void init_textures()
 
     init_texture(vd_state.display_src_view,     video_src_texture_id,     vd_state.display_src_texture);
     init_texture(vd_state.display_preview_view, video_preview_texture_id, vd_state.display_preview_texture);
-    init_texture(vd_state.display_gray_view,    video_gray_texture_id,    vd_state.display_gray_texture);
-    init_texture(vd_state.display_edges_view,   video_edges_texture_id,   vd_state.display_edges_texture);
-    init_texture(vd_state.display_motion_view,  video_motion_texture_id,  vd_state.display_motion_texture);
     init_texture(vd_state.display_vfx_view,     video_vfx_texture_id,     vd_state.display_vfx_texture);
 }
 
@@ -74,9 +68,6 @@ static void render_textures()
 {
     ogl::render_texture(textures.get_ogl_texture(video_src_texture_id));
     ogl::render_texture(textures.get_ogl_texture(video_preview_texture_id));
-    ogl::render_texture(textures.get_ogl_texture(video_gray_texture_id));
-    ogl::render_texture(textures.get_ogl_texture(video_edges_texture_id));
-    ogl::render_texture(textures.get_ogl_texture(video_motion_texture_id));
     ogl::render_texture(textures.get_ogl_texture(video_vfx_texture_id));
 }
 
@@ -158,9 +149,6 @@ static void render_imgui_frame()
 
     vd::video_frame_window(vd_state);
     vd::video_preview_window(vd_state);
-    vd::video_gray_window(vd_state);
-    vd::video_edges_window(vd_state);
-    vd::video_motion_window(vd_state);
     vd::video_vfx_window(vd_state);
 
     ui::render(ui_state);

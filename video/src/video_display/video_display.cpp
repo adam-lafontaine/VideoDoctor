@@ -99,23 +99,42 @@ namespace vec
 }
 
 
-namespace video_display
-{
-    
-    
-    namespace num = numeric;
-    
-}
-
-
 /* internal */
 
 namespace video_display
 {
+    namespace num = numeric;
+
+
 namespace internal
 {
     using VLS = VideoLoadStatus;
     using VPS = VideoPlayStatus;
+
+
+    static bool init_vms(VideoMotionState& vms, u32 scale)
+    {
+        auto w = vms.src_video.frame_width;
+        auto h = vms.src_video.frame_height;
+
+        u32 process_w = w / scale;
+        u32 process_h = h / scale;
+
+        if (!motion::create(vms.gm, process_w, process_h))
+        {
+            return false;
+        }
+
+        vms.gm.src_location = { w / 2, h / 2 };
+        vms.out_position = { w / 2, h / 2 };
+
+        vms.out_position_acc = 0.15f;
+
+        vms.out_limit_region = img::make_rect(w, h);
+        vms.scan_region = img::make_rect(w, h);
+
+        return true;
+    }
     
     
     static bool load_video(DisplayState& state)
@@ -142,11 +161,19 @@ namespace internal
         auto h = video.frame_height;
 
         assert(w && h && "*** No video dimensions ***");
-        assert(w == SRC_VIDEO_WIDTH);
-        assert(h == SRC_VIDEO_HEIGHT);
 
-        u32 crop_w = OUT_VIDEO_WIDTH;
-        u32 crop_h = OUT_VIDEO_HEIGHT;
+        // TODO!
+        u32 proc_scale = state.process_scale;
+        u32 display_scale = state.display_scale;
+
+        if (!init_vms(state.vms, proc_scale))
+        {
+            assert("*** init_vms ***" && false);
+            return false;
+        }
+        
+        u32 crop_w = w / 2;
+        u32 crop_h = h / 2;
 
         vid::create_frame(state.vms.out_frame, crop_w, crop_h);
 
@@ -173,15 +200,6 @@ namespace internal
         }
 
         sw.start();
-    }
-
-
-    static void fill_all(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
-    {
-        img::fill(state.display_gray_view, img::to_pixel(100, 0, 0));
-        img::fill(state.display_edges_view, img::to_pixel(0, 100, 0));
-        img::fill(state.display_motion_view, img::to_pixel(100, 100, 0));
-        img::fill(dst, img::to_pixel(0, 0, 100));
     }
 
 
@@ -256,17 +274,13 @@ namespace internal
 
     static void update_display(DisplayState& state)
     {
-        constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
+        auto display_scale = state.display_scale;
 
         auto& vms = state.vms;
         auto& out_rect = vms.out_region;
         auto& proc_gray = vms.gm.proc_gray_view;
         auto& proc_edges = vms.gm.proc_edges_view;
         auto& proc_motion = vms.gm.proc_motion_view;
-
-        img::map_scale_up(proc_gray, state.display_gray_view);
-        img::map_scale_up(proc_edges, state.display_edges_view);
-        img::map_scale_up(proc_motion, state.display_motion_view);
         
         constexpr auto blue = img::to_pixel(0, 0, 255);
         constexpr auto green = img::to_pixel(0, 255, 0);
