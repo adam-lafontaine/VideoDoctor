@@ -24,11 +24,12 @@ namespace video_display
     constexpr u32 HEIGHT_1080P = HEIGHT_4K / 2;
 
     // display/preview 
-    constexpr u32 DISPLAY_FRAME_HEIGHT_FULL = 360;
-    constexpr u32 DISPLAY_FRAME_WIDTH_FULL = DISPLAY_FRAME_HEIGHT_FULL * WIDTH_4K / HEIGHT_4K;
-
-    constexpr u32 DEFAULT_DISPLAY_SCALE = WIDTH_4K / DISPLAY_FRAME_WIDTH_FULL;
-    constexpr u32 DEFAULT_PROCESS_SCALE = 2 * DEFAULT_DISPLAY_SCALE;
+    constexpr u32 DISPLAY_FRAME_HEIGHT = 360;
+    constexpr u32 DISPLAY_FRAME_WIDTH = DISPLAY_FRAME_HEIGHT * WIDTH_4K / HEIGHT_4K;
+    
+    // image processing
+    constexpr u32 PROCESS_IMAGE_WIDTH = DISPLAY_FRAME_WIDTH / 2;
+    constexpr u32 PROCESS_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_DIR = "/home/adam/Repos/VideoDoctor/video/build/";
@@ -72,7 +73,7 @@ namespace video_display
     };
 
 
-    void destroy(VideoMotionState& vms)
+    void destroy_vms(VideoMotionState& vms)
     {
         motion::destroy(vms.gm);
 
@@ -81,6 +82,7 @@ namespace video_display
         //vid::close_video(state.dst_video); //!
     }
 
+
     class DisplayState
     {
     public:
@@ -88,10 +90,7 @@ namespace video_display
         VideoMotionState vms;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
-        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
-        
-        u32 display_scale = DEFAULT_DISPLAY_SCALE;
-        u32 process_scale = DEFAULT_PROCESS_SCALE;
+        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;        
 
         img::ImageView vfx_view;
 
@@ -108,9 +107,13 @@ namespace video_display
         vid::FrameRGBA display_preview_frame;
 
         fs::path src_video_filepath;
-        ImGui::FileBrowser fb_video;        
+        ImGui::FileBrowser fb_video;
 
-        // ui properties
+        Vec2Du32 src_dims() { return { vms.src_video.frame_width, vms.src_video.frame_height }; }
+        Vec2Du32 out_dims() { auto out = vms.out_view(); return { out.width, out.height }; }
+        
+        u32 display_scale() { auto w = src_dims().x; return w ? w / display_src_view.width : 0; }
+
         bool motion_on;
         bool motion_x_on;
         bool motion_y_on;
@@ -126,7 +129,7 @@ namespace video_display
 {    
     inline void destroy(DisplayState& state)
     { 
-        destroy(state.vms);
+        destroy_vms(state.vms);
         
         mb::destroy_buffer(state.display_buffer32);        
     }
@@ -134,8 +137,8 @@ namespace video_display
 
     inline bool init(DisplayState& state)
     {
-        u32 display_w = DISPLAY_FRAME_WIDTH_FULL;
-        u32 display_h = DISPLAY_FRAME_HEIGHT_FULL;
+        u32 display_w = DISPLAY_FRAME_WIDTH;
+        u32 display_h = DISPLAY_FRAME_HEIGHT;
 
         auto n32 = 2;
         auto n_pixels32 = display_w * display_h * n32;        
@@ -198,7 +201,7 @@ namespace internal
     {
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
-        vid::close_video(state.vms.src_video);
+        destroy_vms(state.vms);
     }
 
     

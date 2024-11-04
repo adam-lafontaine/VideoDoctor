@@ -112,13 +112,13 @@ namespace internal
     using VPS = VideoPlayStatus;
 
 
-    static bool init_vms(VideoMotionState& vms, u32 scale)
+    static bool init_vms(VideoMotionState& vms)
     {
         auto w = vms.src_video.frame_width;
         auto h = vms.src_video.frame_height;
 
-        u32 process_w = w / scale;
-        u32 process_h = h / scale;
+        u32 process_w = PROCESS_IMAGE_WIDTH;
+        u32 process_h = PROCESS_IMAGE_HEIGHT;
 
         if (!motion::create(vms.gm, process_w, process_h))
         {
@@ -162,11 +162,7 @@ namespace internal
 
         assert(w && h && "*** No video dimensions ***");
 
-        // TODO!
-        u32 proc_scale = state.process_scale;
-        u32 display_scale = state.display_scale;
-
-        if (!init_vms(state.vms, proc_scale))
+        if (!init_vms(state.vms))
         {
             assert("*** init_vms ***" && false);
             return false;
@@ -274,7 +270,7 @@ namespace internal
 
     static void update_display(DisplayState& state)
     {
-        auto display_scale = state.display_scale;
+        auto display_scale = state.display_scale();
 
         auto& vms = state.vms;
         auto& out_rect = vms.out_region;
