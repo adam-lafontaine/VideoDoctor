@@ -391,10 +391,15 @@ namespace image
 
     void scale_down(GrayView const& src, GrayView const& dst)
     {
-        auto scale = src.width / dst.width;
-
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
+
+        auto scale = src.width / dst.width;
+        
         assert(src.width == scale * dst.width);
         assert(src.height == scale * dst.height);
         assert(scale > 1);
@@ -405,10 +410,15 @@ namespace image
 
     void scale_down(GraySubView const& src, GrayView const& dst)
     {
-        auto scale = src.width / dst.width;
-
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
+
+        auto scale = src.width / dst.width;
+        
         assert(src.width == scale * dst.width);
         assert(src.height == scale * dst.height);
         assert(scale > 1);
@@ -446,10 +456,15 @@ namespace image
 
     void scale_up(ImageView const& src, ImageView const& dst)
     {
-        auto scale = dst.width / src.width;
-
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
+
+        auto scale = dst.width / src.width;
+        
         assert(dst.width == src.width * scale);
         assert(dst.height == src.height * scale);
         assert(scale > 1);
@@ -460,10 +475,15 @@ namespace image
 
     void scale_up(GrayView const& src, GrayView const& dst)
     {
-       auto scale = dst.width / src.width;
-
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
+
+        auto scale = dst.width / src.width;
+        
         assert(dst.width == src.width * scale);
         assert(dst.height == src.height * scale);
         assert(scale > 1);
@@ -474,10 +494,15 @@ namespace image
 
     void scale_up(GraySubView const& src, GraySubView const& dst)
     {
-        auto scale = dst.width / src.width;
-
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
+
+        auto scale = dst.width / src.width;
+        
         assert(dst.width == src.width * scale);
         assert(dst.height == src.height * scale);
         assert(scale > 1);

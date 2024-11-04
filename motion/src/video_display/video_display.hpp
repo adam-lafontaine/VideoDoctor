@@ -55,24 +55,21 @@ namespace video_display
         NotLoaded = 0,
         Play,
         Pause
-    };  
+    };
 
 
-    class DisplayState
+    class VideoMotionState
     {
     public:
 
         vid::VideoReader src_video;
         //vid::VideoWriter dst_video;
-        vid::FrameRGBA out_frame;
-
-        VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
-        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
+        vid::FrameRGBA out_frame;        
 
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
         img::GrayView proc_motion_view;
-        img::ImageView vfx_view;
+        
 
         motion::GrayMotion edge_motion;
         Point2Du32 feature_position;
@@ -83,10 +80,71 @@ namespace video_display
         Rect2Du32 out_limit_region;
         Rect2Du32 out_region;
 
+        img::Buffer8 buffer8;
+
+        img::ImageView out_view() { return out_frame.view; }
+    };
 
 
-        
-        
+    void destroy(VideoMotionState& vms)
+    {
+        motion::destroy(vms.edge_motion);
+
+        vid::close_video(vms.src_video);
+        vid::destroy_frame(vms.out_frame);
+        //vid::close_video(state.dst_video); //!
+
+        mb::destroy_buffer(vms.buffer8);
+    }
+
+
+    bool init(VideoMotionState& vms)
+    {
+        u32 process_w = PROC_IMAGE_WIDTH;
+        u32 process_h = PROC_IMAGE_HEIGHT;
+
+        auto n_pixels8 = process_w * process_h * 3;
+
+        vms.buffer8 = img::create_buffer8(n_pixels8, "buffer8");
+        if (!vms.buffer8.ok)
+        {
+            return false;
+        }
+
+        mb::zero_buffer(vms.buffer8);
+
+        vms.proc_gray_view = img::make_view(process_w, process_h, vms.buffer8);
+        vms.proc_edges_view = img::make_view(process_w, process_h, vms.buffer8);
+        vms.proc_motion_view = img::make_view(process_w, process_h, vms.buffer8);
+
+        if (!motion::create(vms.edge_motion, MOTION_WIDTH, MOTION_HEIGHT))
+        {
+            return false;
+        }
+
+        vms.feature_position = SRC_CENTER_POS;
+        vms.out_position = SRC_CENTER_POS;
+
+        vms.out_position_acc = 0.15f;
+
+        vms.out_limit_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        vms.scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        //state.dst_region = SRC_CENTER_POS
+
+        return true;
+    }
+
+
+    class DisplayState
+    {
+    public:
+
+        VideoMotionState vms;
+
+        VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
+        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
+
+        img::ImageView vfx_view;
 
         img::ImageView display_src_view;
         img::ImageView display_gray_view;
@@ -108,7 +166,7 @@ namespace video_display
         vid::FrameRGBA display_src_frame;
         vid::FrameRGBA display_preview_frame;
         img::Buffer32 buffer32;
-        img::Buffer8 buffer8;
+        
 
         // ui properties
         bool motion_on;
@@ -126,26 +184,24 @@ namespace video_display
 {    
     inline void destroy(DisplayState& state)
     { 
+        destroy(state.vms);
+
         vid::destroy_frame(state.display_src_frame);
         vid::destroy_frame(state.display_preview_frame);
-
-        motion::destroy(state.edge_motion);
-
-        vid::close_video(state.src_video);
-        vid::destroy_frame(state.out_frame);
-        //vid::close_video(state.dst_video); //!
-        mb::destroy_buffer(state.buffer32);
-        mb::destroy_buffer(state.buffer8);
+        
+        mb::destroy_buffer(state.buffer32);        
     }
 
 
     inline bool init(DisplayState& state)
     {
+        if (!init(state.vms))
+        {
+            return false;
+        }
+        
         u32 display_w = DISPLAY_FRAME_WIDTH;
-        u32 display_h = DISPLAY_FRAME_HEIGHT;
-
-        u32 process_w = PROC_IMAGE_WIDTH;
-        u32 process_h = PROC_IMAGE_HEIGHT;
+        u32 display_h = DISPLAY_FRAME_HEIGHT;        
 
         if (!vid::create_frame(state.display_src_frame, display_w, display_h))
         {
@@ -161,7 +217,7 @@ namespace video_display
         state.display_preview_view = state.display_preview_frame.view;
 
         auto n_pixels32 = display_w * display_h * 5;
-        auto n_pixels8 = process_w * process_h * 3;
+        
 
         state.buffer32 = img::create_buffer32(n_pixels32, "buffer32");
         if (!state.buffer32.ok)
@@ -169,32 +225,13 @@ namespace video_display
             return false;
         }
 
-        state.buffer8 = img::create_buffer8(n_pixels8, "buffer8");
-        if (!state.buffer8.ok)
-        {
-            return false;
-        }
-
-        mb::zero_buffer(state.buffer32);
-        mb::zero_buffer(state.buffer8);
+        mb::zero_buffer(state.buffer32);        
 
         state.display_gray_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_edges_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_motion_view = img::make_view(display_w, display_h, state.buffer32);
         state.display_vfx_view = img::make_view(display_w, display_h, state.buffer32);
-        state.vfx_view = img::make_view(display_w, display_h, state.buffer32);
-
-        state.proc_gray_view = img::make_view(process_w, process_h, state.buffer8);
-        state.proc_edges_view = img::make_view(process_w, process_h, state.buffer8);
-        state.proc_motion_view = img::make_view(process_w, process_h, state.buffer8);
-
-        if (!motion::create(state.edge_motion, MOTION_WIDTH, MOTION_HEIGHT))
-        {
-            return false;
-        }
-
-        state.feature_position = SRC_CENTER_POS;
-        state.out_position = SRC_CENTER_POS;
+        state.vfx_view = img::make_view(display_w, display_h, state.buffer32);        
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
@@ -207,13 +244,7 @@ namespace video_display
 
         state.show_motion = true;
         state.show_scan_region = true;
-        state.show_out_region = true;
-
-        state.out_position_acc = 0.15f;
-
-        state.out_limit_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
-        state.scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
-        //state.dst_region = SRC_CENTER_POS
+        state.show_out_region = true;        
 
         return true;
     }    
@@ -234,7 +265,7 @@ namespace internal
     {
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
-        vid::close_video(state.src_video);
+        vid::close_video(state.vms.src_video);
     }
 
     
@@ -309,9 +340,9 @@ namespace video_display
         
         if (play_pause_disabled) { ImGui::EndDisabled(); }
 
-        auto src_w = state.src_video.frame_width;
-        auto src_h = state.src_video.frame_height;
-        auto src_fps = state.src_video.fps;
+        auto src_w = state.vms.src_video.frame_width;
+        auto src_h = state.vms.src_video.frame_height;
+        auto src_fps = state.vms.src_video.fps;
 
         ImGui::Text("%ux%u %3.1f fps", src_w, src_h, src_fps);
        
@@ -330,7 +361,7 @@ namespace video_display
 
     void video_preview_window(DisplayState& state)
     {
-        auto view = state.out_frame.view;
+        auto view = state.vms.out_view();
         auto display_view = state.display_preview_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_preview_texture;        
@@ -347,7 +378,7 @@ namespace video_display
 
     void video_gray_window(DisplayState& state)
     {
-        auto view = state.proc_gray_view;
+        auto view = state.vms.proc_gray_view;
         auto display_view = state.display_gray_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_gray_texture;        
@@ -364,7 +395,7 @@ namespace video_display
 
     void video_edges_window(DisplayState& state)
     {
-        auto view = state.proc_edges_view;
+        auto view = state.vms.proc_edges_view;
         auto display_view = state.display_edges_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_edges_texture;
@@ -381,7 +412,7 @@ namespace video_display
 
     void video_motion_window(DisplayState& state)
     {
-        auto view = state.proc_motion_view;
+        auto view = state.vms.proc_motion_view;
         auto display_view = state.display_motion_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_motion_texture;        
@@ -398,8 +429,8 @@ namespace video_display
     
     void video_vfx_window(DisplayState& state)
     {
-        auto src_w = state.src_video.frame_width;
-        auto src_h = state.src_video.frame_height;
+        auto src_w = state.vms.src_video.frame_width;
+        auto src_h = state.vms.src_video.frame_height;
         auto display_view = state.display_vfx_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_vfx_texture;

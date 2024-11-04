@@ -129,7 +129,7 @@ namespace internal
 
         reset_video(state);
 
-        auto& video = state.src_video;
+        auto& video = state.vms.src_video;
 
         auto ok = vid::open_video(video, state.src_video_filepath.string().c_str());
         if (!ok)
@@ -148,7 +148,7 @@ namespace internal
         u32 crop_w = DST_VIDEO_WIDTH;
         u32 crop_h = DST_VIDEO_HEIGHT;
 
-        vid::create_frame(state.out_frame, crop_w, crop_h);
+        vid::create_frame(state.vms.out_frame, crop_w, crop_h);
 
         /*cstr crop_path = OUT_VIDEO_PATH;
         ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
@@ -218,12 +218,14 @@ namespace internal
             return;
         }
 
-        auto fp = vec::to_f32(state.feature_position);
-        auto dp = vec::to_f32(state.out_position);
+        auto& vms = state.vms;
+
+        auto fp = vec::to_f32(vms.feature_position);
+        auto dp = vec::to_f32(vms.out_position);
 
         auto d_px = vec::sub(fp, dp);
         
-        auto acc = state.out_position_acc;
+        auto acc = vms.out_position_acc;
 
         auto v_px = vec::mul(d_px, acc);
 
@@ -231,12 +233,12 @@ namespace internal
 
         if (state.motion_x_on)
         {
-            state.out_position.x = pos.x;
+            vms.out_position.x = pos.x;
         }
 
         if (state.motion_y_on)
         {
-            state.out_position.y = pos.y;
+            vms.out_position.y = pos.y;
         }
     }
 
@@ -258,24 +260,26 @@ namespace internal
         constexpr auto proc_scale = SRC_VIDEO_WIDTH / PROC_IMAGE_WIDTH;
         constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
 
-        auto src_gray = vid::frame_gray_view(state.src_video);
-        auto& proc_gray = state.proc_gray_view;
-        auto& proc_edges = state.proc_edges_view;
-        auto& proc_motion = state.proc_motion_view;
-        auto& dst_rect = state.out_region;
+        auto& vms = state.vms;
+
+        auto src_gray = vid::frame_gray_view(vms.src_video);
+        auto& proc_gray = vms.proc_gray_view;
+        auto& proc_edges = vms.proc_edges_view;
+        auto& proc_motion = vms.proc_motion_view;
+        auto& dst_rect = vms.out_region;
 
         img::scale_down(src_gray, proc_gray);
         img::gradients(proc_gray, proc_edges);
 
-        auto proc_scan_rect = rect_scale_down(state.scan_region, proc_scale);
+        auto proc_scan_rect = rect_scale_down(vms.scan_region, proc_scale);
 
-        motion::update(state.edge_motion, proc_edges, proc_scan_rect, proc_motion);
-        state.feature_position = motion::scale_location(state.edge_motion, motion_scale);
+        motion::update(vms.edge_motion, proc_edges, proc_scan_rect, proc_motion);
+        vms.feature_position = motion::scale_location(vms.edge_motion, motion_scale);
 
         update_out_position(state);
-        dst_rect = get_crop_rect(state.out_position, dst.width, dst.height, state.out_limit_region);
+        dst_rect = get_crop_rect(vms.out_position, dst.width, dst.height, vms.out_limit_region);
         
-        img::copy(img::sub_view(vid::frame_view(state.src_video), dst_rect), dst);
+        img::copy(img::sub_view(vid::frame_view(vms.src_video), dst_rect), dst);
         
         img::map_scale_up(proc_gray, state.display_gray_view);
         img::map_scale_up(proc_edges, state.display_edges_view);
@@ -299,7 +303,7 @@ namespace internal
 
         if (state.show_out_region)
         {
-            auto rect = rect_scale_down(state.out_limit_region, display_scale);
+            auto rect = rect_scale_down(vms.out_limit_region, display_scale);
             img::draw_rect(state.vfx_view, rect, dark_green, line_th);
 
             rect = rect_scale_down(dst_rect, display_scale);
@@ -308,7 +312,7 @@ namespace internal
 
         if (state.show_scan_region)
         {
-            auto rect = rect_scale_down(state.scan_region, display_scale);
+            auto rect = rect_scale_down(vms.scan_region, display_scale);
             img::draw_rect(state.vfx_view, rect, red, line_th);
         }
 
@@ -326,10 +330,10 @@ namespace internal
             process_frame(state, vs, vd);
         };
 
-        auto& src = state.src_video;
+        auto& src = state.vms.src_video;
         //auto& dst = state.dst_video;
 
-        vid::process_video(src, state.out_frame, proc, src_frames, dst_frames);
+        vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames);
         reset_video(state);
         //vid::save_and_close_video(dst);
     }
@@ -381,6 +385,8 @@ namespace internal
 
     void motion_detection_settings(DisplayState& state)
     {
+        auto& vms = state.vms;
+
         ImGui::SeparatorText("Motion Detection");
 
         ImGui::Checkbox("ON/OFF", &state.motion_on);
@@ -396,21 +402,21 @@ namespace internal
         ImGui::Text("Sensitivity");
         ImGui::SliderFloat(
             "Motion##Slider",
-            &state.edge_motion.motion_sensitivity,
+            &vms.edge_motion.motion_sensitivity,
             0.5f, 0.9999f,
             "%6.4f"
         );
 
         ImGui::SliderFloat(
             "Locate",
-            &state.edge_motion.locate_sensitivity,
+            &vms.edge_motion.locate_sensitivity,
             0.9f, 0.9999f,
             "%6.4f"
         );
 
         ImGui::SliderFloat(
             "Movement",
-            &state.out_position_acc,
+            &vms.out_position_acc,
             0.05f, 0.5f,
             "%6.4f"
         );
@@ -421,9 +427,9 @@ namespace internal
             state.motion_x_on = true;
             state.motion_y_on = true;
             state.show_motion = true;
-            state.edge_motion.motion_sensitivity = 0.9f;
-            state.edge_motion.locate_sensitivity = 0.98;
-            state.out_position_acc = 0.15f;
+            vms.edge_motion.motion_sensitivity = 0.9f;
+            vms.edge_motion.locate_sensitivity = 0.98;
+            vms.out_position_acc = 0.15f;
         }
     }
 
@@ -434,8 +440,10 @@ namespace internal
 
         ImGui::Checkbox("Show scan region", &state.show_scan_region);
 
-        int src_width = state.src_video.frame_width;
-        int src_height = state.src_video.frame_height;
+        auto& vms = state.vms;
+
+        int src_width = vms.src_video.frame_width;
+        int src_height = vms.src_video.frame_height;
 
         if (!src_width)
         {
@@ -446,8 +454,8 @@ namespace internal
 
         ImGui::Checkbox("Lock to display", &lock_to_display);
 
-        auto& dst_region = state.out_region;
-        auto& scan_region = state.scan_region;
+        auto& dst_region = vms.out_region;
+        auto& scan_region = vms.scan_region;
         
         if (lock_to_display)
         {
@@ -508,18 +516,21 @@ namespace internal
 
         ImGui::Checkbox("Show display region", &state.show_out_region);
 
-        auto& dst_region = state.out_limit_region;
+        auto& vms = state.vms;
 
-        int src_width = state.src_video.frame_width;
-        int src_height = state.src_video.frame_height;
+        auto& dst_region = vms.out_limit_region;
+
+        int src_width = vms.src_video.frame_width;
+        int src_height = vms.src_video.frame_height;
 
         if (!src_width)
         {
             return;
         }
 
-        int dst_width = state.out_frame.view.width;
-        int dst_height = state.out_frame.view.height;
+        auto dst_view = state.vms.out_view();
+        int dst_width = dst_view.width;
+        int dst_height = dst_view.height;
 
         static int x_begin;
         static int x_end;
