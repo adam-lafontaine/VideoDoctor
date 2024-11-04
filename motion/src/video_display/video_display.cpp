@@ -211,6 +211,17 @@ namespace internal
     }
 
 
+    static Rect2Du32 rect_scale_down(Rect2Du32 rect, u32 scale)
+    {
+        rect.x_begin /= scale;
+        rect.x_end /= scale;
+        rect.y_begin /= scale;
+        rect.y_end /= scale;
+
+        return rect;
+    }
+
+
     static void update_out_position(DisplayState& state)
     {
         if (!state.motion_on)
@@ -243,39 +254,16 @@ namespace internal
     }
 
 
-    static Rect2Du32 rect_scale_down(Rect2Du32 rect, u32 scale)
+    static void update_display(DisplayState& state)
     {
-        rect.x_begin /= scale;
-        rect.x_end /= scale;
-        rect.y_begin /= scale;
-        rect.y_end /= scale;
-
-        return rect;
-    }
-
-
-    static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& dst)
-    {
-        constexpr auto motion_scale = SRC_VIDEO_WIDTH / MOTION_WIDTH;
-        constexpr auto proc_scale = SRC_VIDEO_WIDTH / PROC_IMAGE_WIDTH;
         constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
 
         auto& vms = state.vms;
-        auto& dst_rect = vms.out_region;
+        auto& out_rect = vms.out_region;
         auto& proc_gray = vms.gm.proc_gray_view;
         auto& proc_edges = vms.gm.proc_edges_view;
         auto& proc_motion = vms.gm.proc_motion_view;
 
-        auto src_gray = vid::frame_gray_view(vms.src_video);
-        auto src_rgba = vid::frame_view(vms.src_video);
-
-        motion::update(vms.gm, src_gray, vms.scan_region);        
-
-        update_out_position(state);
-        dst_rect = get_crop_rect(vms.out_position, dst.width, dst.height, vms.out_limit_region);
-        
-        img::copy(img::sub_view(src_rgba, dst_rect), dst);
-        
         img::map_scale_up(proc_gray, state.display_gray_view);
         img::map_scale_up(proc_edges, state.display_edges_view);
         img::map_scale_up(proc_motion, state.display_motion_view);
@@ -301,7 +289,7 @@ namespace internal
             auto rect = rect_scale_down(vms.out_limit_region, display_scale);
             img::draw_rect(state.vfx_view, rect, dark_green, line_th);
 
-            rect = rect_scale_down(dst_rect, display_scale);
+            rect = rect_scale_down(out_rect, display_scale);
             img::draw_rect(state.vfx_view, rect, green, line_th);
         }
 
@@ -314,15 +302,33 @@ namespace internal
         img::copy(state.vfx_view, state.display_vfx_view);
     }
 
+
+    static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& out)
+    {
+        auto& vms = state.vms;
+        auto& out_rect = vms.out_region;
+
+        auto src_gray = vid::frame_gray_view(vms.src_video);
+        auto src_rgba = vid::frame_view(vms.src_video);
+
+        motion::update(vms.gm, src_gray, vms.scan_region);        
+
+        update_out_position(state);
+        out_rect = get_crop_rect(vms.out_position, out.width, out.height, vms.out_limit_region);
+        img::copy(img::sub_view(src_rgba, out_rect), out);
+        
+        update_display(state);
+    }
+
     
     static void process_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_src_frame };
         vid::FrameList dst_frames = { state.display_preview_frame };
 
-        auto const proc = [&](auto const& vs, auto const& vd)
+        auto const proc = [&](auto const& v_src, auto const& v_out)
         {
-            process_frame(state, vs, vd);
+            process_frame(state, v_src, v_out);
         };
 
         auto& src = state.vms.src_video;

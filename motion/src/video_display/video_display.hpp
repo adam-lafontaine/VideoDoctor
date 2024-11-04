@@ -31,10 +31,6 @@ namespace video_display
     constexpr u32 PROC_IMAGE_WIDTH = DISPLAY_FRAME_WIDTH / 2;
     constexpr u32 PROC_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
 
-    // motion
-    constexpr u32 MOTION_WIDTH = PROC_IMAGE_WIDTH / 2;
-    constexpr u32 MOTION_HEIGHT = PROC_IMAGE_HEIGHT / 2;
-
     constexpr Point2Du32 SRC_CENTER_POS = { SRC_VIDEO_WIDTH / 2, SRC_VIDEO_HEIGHT / 2 };
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
