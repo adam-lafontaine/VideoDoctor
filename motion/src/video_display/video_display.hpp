@@ -64,15 +64,29 @@ namespace video_display
 
         vid::VideoReader src_video;
         //vid::VideoWriter dst_video;
-        vid::FrameRGBA dst_frame;
+        vid::FrameRGBA out_frame;
+
+        VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
+        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
 
         img::GrayView proc_gray_view;        
         img::GrayView proc_edges_view;
         img::GrayView proc_motion_view;
         img::ImageView vfx_view;
+
+        motion::GrayMotion edge_motion;
+        Point2Du32 feature_position;
+        Point2Du32 out_position;
+        f32 out_position_acc;
         
-        vid::FrameRGBA display_src_frame;
-        vid::FrameRGBA display_preview_frame;
+        Rect2Du32 scan_region;
+        Rect2Du32 out_limit_region;
+        Rect2Du32 out_region;
+
+
+
+        
+        
 
         img::ImageView display_src_view;
         img::ImageView display_gray_view;
@@ -88,16 +102,11 @@ namespace video_display
         ImTextureID display_vfx_texture;
         ImTextureID display_preview_texture;
 
-        VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
-        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
-
-        motion::GrayMotion edge_motion;
-        Point2Du32 feature_position;
-        Point2Du32 dst_position;
-
         fs::path src_video_filepath;
         ImGui::FileBrowser fb_video;
 
+        vid::FrameRGBA display_src_frame;
+        vid::FrameRGBA display_preview_frame;
         img::Buffer32 buffer32;
         img::Buffer8 buffer8;
 
@@ -108,14 +117,7 @@ namespace video_display
 
         bool show_motion;
         bool show_scan_region;
-        bool show_dst_region;
-
-        Rect2Du32 src_dst_region;
-        Rect2Du32 src_scan_region;
-        Rect2Du32 dst_region;
-
-        f32 dst_region_acc;
-
+        bool show_out_region;
     };
 }
 
@@ -130,7 +132,7 @@ namespace video_display
         motion::destroy(state.edge_motion);
 
         vid::close_video(state.src_video);
-        vid::destroy_frame(state.dst_frame);
+        vid::destroy_frame(state.out_frame);
         //vid::close_video(state.dst_video); //!
         mb::destroy_buffer(state.buffer32);
         mb::destroy_buffer(state.buffer8);
@@ -192,7 +194,7 @@ namespace video_display
         }
 
         state.feature_position = SRC_CENTER_POS;
-        state.dst_position = SRC_CENTER_POS;
+        state.out_position = SRC_CENTER_POS;
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
@@ -205,12 +207,12 @@ namespace video_display
 
         state.show_motion = true;
         state.show_scan_region = true;
-        state.show_dst_region = true;
+        state.show_out_region = true;
 
-        state.dst_region_acc = 0.15f;
+        state.out_position_acc = 0.15f;
 
-        state.src_dst_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
-        state.src_scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        state.out_limit_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
+        state.scan_region = img::make_rect(SRC_VIDEO_WIDTH, SRC_VIDEO_HEIGHT);
         //state.dst_region = SRC_CENTER_POS
 
         return true;
@@ -328,7 +330,8 @@ namespace video_display
 
     void video_preview_window(DisplayState& state)
     {
-        auto display_view = state.display_preview_frame.view;
+        auto view = state.out_frame.view;
+        auto display_view = state.display_preview_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_preview_texture;        
 
@@ -336,10 +339,7 @@ namespace video_display
 
         ImGui::Image(texture, dims);
 
-        auto w = state.dst_frame.view.width;
-        auto h = state.dst_frame.view.height;
-
-        ImGui::Text("%ux%u", w, h);
+        ImGui::Text("%ux%u", view.width, view.height);
 
         ImGui::End();
     }
