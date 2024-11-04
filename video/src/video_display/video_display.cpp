@@ -331,7 +331,7 @@ namespace internal
     }
 
     
-    static void process_video(DisplayState& state)
+    static void process_play_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_src_frame };
         vid::FrameList dst_frames = { state.display_preview_frame };
@@ -341,12 +341,12 @@ namespace internal
             process_frame(state, v_src, v_out);
         };
 
-        auto& src = state.vms.src_video;
-        //auto& dst = state.dst_video;
+        auto const cond = [&](){ return state.play_status == VPS::Play; };
 
-        vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames);
-        reset_video(state);
-        //vid::save_and_close_video(dst);
+        auto& src = state.vms.src_video;
+
+        vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames, cond);
+        //reset_video(state);
     }
 
 
@@ -373,7 +373,7 @@ namespace internal
     }
 
 
-    void process_video_async(DisplayState& state)
+    void play_video_async(DisplayState& state)
     {
         using VPS = VideoPlayStatus;
 
@@ -385,12 +385,26 @@ namespace internal
         auto const play = [&]()
         {
             state.play_status = VPS::Play;
-            process_video(state);
+            process_play_video(state);
             state.play_status = VPS::Pause;
         };
 
         std::thread th(play);
         th.detach();
+    }
+
+
+    void pause_video(DisplayState& state)
+    {
+        state.play_status = VPS::Pause;
+    }
+
+
+    void stop_video(DisplayState& state)
+    {
+        //TODO
+        state.play_status = VPS::Pause;
+        //reload/close
     }
     
 

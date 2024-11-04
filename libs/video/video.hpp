@@ -49,6 +49,7 @@ namespace video
     using fn = std::function<T>;
 
     using fn_gray_to_rgba = fn<void(img::GrayView const&, img::ImageView const&)>;
+    using fn_bool = fn<bool()>;
 
 
     bool create_frame(FrameRGBA& frame, u32 width, u32 height);
@@ -69,6 +70,8 @@ namespace video
     void play_video(VideoReader const& video, FrameList const& frames_out);
 
     void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
     
     
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height);
@@ -82,6 +85,8 @@ namespace video
     img::GrayView frame_gray_view(VideoWriter const& video);
     
     void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
     
 }
 

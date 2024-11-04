@@ -207,7 +207,11 @@ namespace internal
     
     void load_video_async(DisplayState& state);
 
-    void process_video_async(DisplayState& state);
+    void play_video_async(DisplayState& state);
+
+    void pause_video(DisplayState& state);
+
+    void stop_video(DisplayState& state);
 
     void motion_detection_settings(DisplayState& state);
 
@@ -270,7 +274,15 @@ namespace video_display
             ImGui::SameLine();
             if (ImGui::Button("Play"))
             {
-                internal::process_video_async(state);
+                internal::play_video_async(state);
+            }
+        }
+        else if (state.play_status == VPS::Play)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("Pause"))
+            {
+                internal::pause_video(state);
             }
         }
         

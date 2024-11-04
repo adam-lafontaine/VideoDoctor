@@ -169,60 +169,6 @@ namespace video
     }
     
 
-    static void for_each_frame(VideoReaderContext const& ctx, std::function<void(VideoReaderContext const&)> const& func)
-    {
-        auto packet = ctx.packet;
-        auto decoder = ctx.codec_ctx;
-        auto frame = ctx.frame_av;
-        auto stream = ctx.stream;
-
-        while (av_read_frame(ctx.format_ctx, packet) >= 0) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
-                        func(ctx);
-                    }
-                }
-            }
-            av_packet_unref(ctx.packet);
-        }
-    }
-
-
-    static void for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, std::function<void(VideoReaderContext const&, VideoWriterContext const&)> const& func)
-    {
-        auto packet = src_ctx.packet;
-        auto decoder = src_ctx.codec_ctx;
-        auto frame = src_ctx.frame_av;
-        auto stream = src_ctx.stream;
-
-        while (av_read_frame(src_ctx.format_ctx, packet) >= 0) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-                        func(src_ctx, dst_ctx);                        
-                    }
-                }
-            }
-            av_packet_unref(packet);
-        }
-    }
-
-
     static void encode_frame(VideoWriterContext const& ctx, i64 pts)
     {
         auto encoder = ctx.codec_ctx;
@@ -373,6 +319,123 @@ namespace video
         encode_frame(dst_ctx, src_av->pts);        
     }
     
+}
+
+
+/* for_each_frame */
+
+namespace video
+{
+    template <class FRAME_FN> //std::function<void(VideoReaderContext const&)>
+    static void for_each_frame(VideoReaderContext const& ctx, FRAME_FN const& func)
+    {
+        auto packet = ctx.packet;
+        auto decoder = ctx.codec_ctx;
+        auto frame = ctx.frame_av;
+        auto stream = ctx.stream;
+
+        while (av_read_frame(ctx.format_ctx, packet) >= 0) 
+        {
+            if (packet->stream_index == stream->index) 
+            {
+                // Send packet to decoder
+                if (avcodec_send_packet(decoder, packet) == 0) 
+                {
+                    // Receive frame from decoder
+                    while (avcodec_receive_frame(decoder, frame) == 0) 
+                    {
+                        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
+                        func(ctx);
+                    }
+                }
+            }
+            av_packet_unref(ctx.packet);
+        }
+    }
+
+
+    template <class FRAME_FN> //std::function<void(VideoReaderContext const&, VideoWriterContext const&)>
+    static void for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func)
+    {
+        auto packet = src_ctx.packet;
+        auto decoder = src_ctx.codec_ctx;
+        auto frame = src_ctx.frame_av;
+        auto stream = src_ctx.stream;
+
+        while (av_read_frame(src_ctx.format_ctx, packet) >= 0) 
+        {
+            if (packet->stream_index == stream->index) 
+            {
+                // Send packet to decoder
+                if (avcodec_send_packet(decoder, packet) == 0) 
+                {
+                    // Receive frame from decoder
+                    while (avcodec_receive_frame(decoder, frame) == 0) 
+                    {
+                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
+                        func(src_ctx, dst_ctx);                        
+                    }
+                }
+            }
+            av_packet_unref(packet);
+        }
+    }
+
+
+    template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&)>, std::function<bool()>
+    static void for_each_frame(VideoReaderContext const& ctx, FRAME_FN const& func, COND_FN const& cond)
+    {
+        auto packet = ctx.packet;
+        auto decoder = ctx.codec_ctx;
+        auto frame = ctx.frame_av;
+        auto stream = ctx.stream;
+
+        while (cond() && av_read_frame(ctx.format_ctx, packet) >= 0) 
+        {
+            if (packet->stream_index == stream->index) 
+            {
+                // Send packet to decoder
+                if (avcodec_send_packet(decoder, packet) == 0) 
+                {
+                    // Receive frame from decoder
+                    while (avcodec_receive_frame(decoder, frame) == 0) 
+                    {
+                        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
+                        func(ctx);
+                    }
+                }
+            }
+            av_packet_unref(ctx.packet);
+        }
+    }
+
+
+    template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&, VideoWriterContext const&)>, std::function<bool()>
+    static void for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func, COND_FN const& cond)
+    {
+        auto packet = src_ctx.packet;
+        auto decoder = src_ctx.codec_ctx;
+        auto frame = src_ctx.frame_av;
+        auto stream = src_ctx.stream;
+
+        while (cond() && av_read_frame(src_ctx.format_ctx, packet) >= 0) 
+        {
+            if (packet->stream_index == stream->index) 
+            {
+                // Send packet to decoder
+                if (avcodec_send_packet(decoder, packet) == 0) 
+                {
+                    // Receive frame from decoder
+                    while (avcodec_receive_frame(decoder, frame) == 0) 
+                    {
+                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
+                        func(src_ctx, dst_ctx);                        
+                    }
+                }
+            }
+            av_packet_unref(packet);
+        }
+    }
 }
 
 
@@ -618,6 +681,32 @@ namespace video
 
         for_each_frame(get_context(src), proc);
     }
+
+
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    {
+        auto src_view = frame_gray_view(src);
+        auto dst_view = dst.view;
+
+        auto dst_av = av_frame(dst);
+
+        auto const proc = [&](auto const& src_ctx)
+        {
+            cb(src_view, dst_view);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+            
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(get_context(src), proc, proc_cond);
+    }
    
 
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height)
@@ -837,6 +926,31 @@ namespace video
         };
 
         for_each_frame(get_context(src), get_context(dst), proc);
+    }
+    
+    
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    {
+        auto src_view = frame_gray_view(src);
+        auto dst_view = frame_view(dst);
+
+        auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
+        {
+            cb(src_view, dst_view);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+
+            auto dst_av = av_frame(dst_ctx.frame_rgba);
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(get_context(src), get_context(dst), proc, proc_cond);
     }
 
 
