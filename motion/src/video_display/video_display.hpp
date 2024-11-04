@@ -20,8 +20,8 @@ namespace video_display
     constexpr u32 SRC_VIDEO_HEIGHT = 2160;
 
     // 1080p video
-    constexpr u32 DST_VIDEO_WIDTH = SRC_VIDEO_WIDTH / 2;
-    constexpr u32 DST_VIDEO_HEIGHT = SRC_VIDEO_HEIGHT / 2;
+    constexpr u32 OUT_VIDEO_WIDTH = SRC_VIDEO_WIDTH / 2;
+    constexpr u32 OUT_VIDEO_HEIGHT = SRC_VIDEO_HEIGHT / 2;
 
     // display/preview    
     constexpr u32 DISPLAY_FRAME_HEIGHT = 360;
@@ -64,15 +64,10 @@ namespace video_display
 
         vid::VideoReader src_video;
         //vid::VideoWriter dst_video;
-        vid::FrameRGBA out_frame;        
+        vid::FrameRGBA out_frame;
 
-        img::GrayView proc_gray_view;        
-        img::GrayView proc_edges_view;
-        img::GrayView proc_motion_view;
-        
+        motion::GradientMotion gm;
 
-        motion::GrayMotion edge_motion;
-        Point2Du32 feature_position;
         Point2Du32 out_position;
         f32 out_position_acc;
         
@@ -80,21 +75,17 @@ namespace video_display
         Rect2Du32 out_limit_region;
         Rect2Du32 out_region;
 
-        img::Buffer8 buffer8;
-
         img::ImageView out_view() { return out_frame.view; }
     };
 
 
     void destroy(VideoMotionState& vms)
     {
-        motion::destroy(vms.edge_motion);
+        motion::destroy(vms.gm);
 
         vid::close_video(vms.src_video);
         vid::destroy_frame(vms.out_frame);
         //vid::close_video(state.dst_video); //!
-
-        mb::destroy_buffer(vms.buffer8);
     }
 
 
@@ -103,26 +94,12 @@ namespace video_display
         u32 process_w = PROC_IMAGE_WIDTH;
         u32 process_h = PROC_IMAGE_HEIGHT;
 
-        auto n_pixels8 = process_w * process_h * 3;
-
-        vms.buffer8 = img::create_buffer8(n_pixels8, "buffer8");
-        if (!vms.buffer8.ok)
+        if (!motion::create(vms.gm, process_w, process_h))
         {
             return false;
         }
 
-        mb::zero_buffer(vms.buffer8);
-
-        vms.proc_gray_view = img::make_view(process_w, process_h, vms.buffer8);
-        vms.proc_edges_view = img::make_view(process_w, process_h, vms.buffer8);
-        vms.proc_motion_view = img::make_view(process_w, process_h, vms.buffer8);
-
-        if (!motion::create(vms.edge_motion, MOTION_WIDTH, MOTION_HEIGHT))
-        {
-            return false;
-        }
-
-        vms.feature_position = SRC_CENTER_POS;
+        vms.gm.src_location = SRC_CENTER_POS;
         vms.out_position = SRC_CENTER_POS;
 
         vms.out_position_acc = 0.15f;
@@ -199,7 +176,7 @@ namespace video_display
         {
             return false;
         }
-        
+
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;        
 
@@ -378,7 +355,7 @@ namespace video_display
 
     void video_gray_window(DisplayState& state)
     {
-        auto view = state.vms.proc_gray_view;
+        auto view = state.vms.gm.proc_gray_view;
         auto display_view = state.display_gray_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_gray_texture;        
@@ -395,7 +372,7 @@ namespace video_display
 
     void video_edges_window(DisplayState& state)
     {
-        auto view = state.vms.proc_edges_view;
+        auto view = state.vms.gm.proc_edges_view;
         auto display_view = state.display_edges_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_edges_texture;
@@ -412,7 +389,7 @@ namespace video_display
 
     void video_motion_window(DisplayState& state)
     {
-        auto view = state.vms.proc_motion_view;
+        auto view = state.vms.gm.proc_motion_view;
         auto display_view = state.display_motion_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_motion_texture;        

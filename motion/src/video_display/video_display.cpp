@@ -145,8 +145,8 @@ namespace internal
         assert(w == SRC_VIDEO_WIDTH);
         assert(h == SRC_VIDEO_HEIGHT);
 
-        u32 crop_w = DST_VIDEO_WIDTH;
-        u32 crop_h = DST_VIDEO_HEIGHT;
+        u32 crop_w = OUT_VIDEO_WIDTH;
+        u32 crop_h = OUT_VIDEO_HEIGHT;
 
         vid::create_frame(state.vms.out_frame, crop_w, crop_h);
 
@@ -220,7 +220,7 @@ namespace internal
 
         auto& vms = state.vms;
 
-        auto fp = vec::to_f32(vms.feature_position);
+        auto fp = vec::to_f32(vms.gm.src_location);
         auto dp = vec::to_f32(vms.out_position);
 
         auto d_px = vec::sub(fp, dp);
@@ -261,25 +261,20 @@ namespace internal
         constexpr auto display_scale = SRC_VIDEO_WIDTH / DISPLAY_FRAME_WIDTH;
 
         auto& vms = state.vms;
+        auto& dst_rect = vms.out_region;
+        auto& proc_gray = vms.gm.proc_gray_view;
+        auto& proc_edges = vms.gm.proc_edges_view;
+        auto& proc_motion = vms.gm.proc_motion_view;
 
         auto src_gray = vid::frame_gray_view(vms.src_video);
-        auto& proc_gray = vms.proc_gray_view;
-        auto& proc_edges = vms.proc_edges_view;
-        auto& proc_motion = vms.proc_motion_view;
-        auto& dst_rect = vms.out_region;
+        auto src_rgba = vid::frame_view(vms.src_video);
 
-        img::scale_down(src_gray, proc_gray);
-        img::gradients(proc_gray, proc_edges);
-
-        auto proc_scan_rect = rect_scale_down(vms.scan_region, proc_scale);
-
-        motion::update(vms.edge_motion, proc_edges, proc_scan_rect, proc_motion);
-        vms.feature_position = motion::scale_location(vms.edge_motion, motion_scale);
+        motion::update(vms.gm, src_gray, vms.scan_region);        
 
         update_out_position(state);
         dst_rect = get_crop_rect(vms.out_position, dst.width, dst.height, vms.out_limit_region);
         
-        img::copy(img::sub_view(vid::frame_view(vms.src_video), dst_rect), dst);
+        img::copy(img::sub_view(src_rgba, dst_rect), dst);
         
         img::map_scale_up(proc_gray, state.display_gray_view);
         img::map_scale_up(proc_edges, state.display_edges_view);
@@ -402,14 +397,14 @@ namespace internal
         ImGui::Text("Sensitivity");
         ImGui::SliderFloat(
             "Motion##Slider",
-            &vms.edge_motion.motion_sensitivity,
+            &vms.gm.edge_motion.motion_sensitivity,
             0.5f, 0.9999f,
             "%6.4f"
         );
 
         ImGui::SliderFloat(
             "Locate",
-            &vms.edge_motion.locate_sensitivity,
+            &vms.gm.edge_motion.locate_sensitivity,
             0.9f, 0.9999f,
             "%6.4f"
         );
@@ -427,8 +422,8 @@ namespace internal
             state.motion_x_on = true;
             state.motion_y_on = true;
             state.show_motion = true;
-            vms.edge_motion.motion_sensitivity = 0.9f;
-            vms.edge_motion.locate_sensitivity = 0.98;
+            vms.gm.edge_motion.motion_sensitivity = 0.9f;
+            vms.gm.edge_motion.locate_sensitivity = 0.98;
             vms.out_position_acc = 0.15f;
         }
     }
