@@ -197,15 +197,16 @@ namespace internal
     using VPS = VideoPlayStatus;
 
 
-    static void reset_video(DisplayState& state)
+    static void reset_video_status(DisplayState& state)
     {
         state.load_status = VLS::NotLoaded;
         state.play_status = VPS::NotLoaded;
-        destroy_vms(state.vms);
     }
 
     
     void load_video_async(DisplayState& state);
+
+    void reload_video_async(DisplayState& state);
 
     void play_video_async(DisplayState& state);
 
@@ -236,7 +237,7 @@ namespace video_display
         auto texture = state.display_src_texture;
 
         auto open_disabled = state.play_status == VPS::Play;
-        auto load_disabled = state.load_status != VLS::NotLoaded;
+        auto load_disabled = state.play_status == VPS::Play;
         auto play_pause_disabled = state.load_status != VLS::Loaded;
 
         ImGui::Begin("Video");
@@ -255,11 +256,22 @@ namespace video_display
         ImGui::Text("file: %s", state.src_video_filepath.string().c_str());
 
         if (load_disabled) { ImGui::BeginDisabled(); }
-        
-        if (ImGui::Button("Load"))
+
+        if (state.load_status == VLS::NotLoaded)
         {
-            internal::load_video_async(state);
+            if (ImGui::Button("Load"))
+            {
+                internal::load_video_async(state);
+            }
         }
+        else if (state.load_status == VLS::Loaded)
+        {
+            if (ImGui::Button("Reload"))
+            {
+                internal::reload_video_async(state);
+            }
+        }
+
         if (load_disabled) { ImGui::EndDisabled(); }
 
         if (play_pause_disabled) { ImGui::BeginDisabled(); }
@@ -299,7 +311,7 @@ namespace video_display
         state.fb_video.Display();
         if (state.fb_video.HasSelected())
         {
-            internal::reset_video(state);
+            internal::reset_video_status(state);
 
             state.src_video_filepath = state.fb_video.GetSelected();
             state.fb_video.ClearSelected();

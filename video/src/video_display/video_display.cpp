@@ -146,7 +146,7 @@ namespace internal
             return false;
         }
 
-        reset_video(state);
+        reset_video_status(state);
 
         auto& video = state.vms.src_video;
 
@@ -161,13 +161,55 @@ namespace internal
         auto h = video.frame_height;
 
         assert(w && h && "*** No video dimensions ***");
+        
+        u32 crop_w = w / 2;
+        u32 crop_h = h / 2;
+
+        vid::create_frame(state.vms.out_frame, crop_w, crop_h);
+
+        /*cstr crop_path = OUT_VIDEO_PATH;
+        ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
+        if (!ok)
+        {
+            assert("*** vid::create_video ***" && false);
+            return false;
+        }*/
 
         if (!init_vms(state.vms))
         {
             assert("*** init_vms ***" && false);
             return false;
         }
-        
+
+        return true;
+    }
+
+
+    static bool reload_video(DisplayState& state)
+    {
+        auto path = state.src_video_filepath;
+        if (!fs::exists(path) || !fs::is_regular_file(path))
+        {
+            assert("*** bad video path ***" && false);
+            return false;
+        }
+
+        reset_video_status(state);
+
+        auto& video = state.vms.src_video;
+
+        vid::close_video(video);
+
+        auto ok = vid::open_video(video, state.src_video_filepath.string().c_str());
+        if (!ok)
+        {
+            assert("*** vid::open_video ***" && false);
+            return false;
+        }
+
+        auto w = video.frame_width;
+        auto h = video.frame_height;
+
         u32 crop_w = w / 2;
         u32 crop_h = h / 2;
 
@@ -347,7 +389,7 @@ namespace internal
 
         if (vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames, cond))
         {
-            reset_video(state);
+            reset_video_status(state);
         }
     }
 
@@ -358,6 +400,29 @@ namespace internal
         {
             state.load_status = VLS::InProgress;
             auto ok = load_video(state);
+            if (ok)
+            {
+                state.load_status = VLS::Loaded;
+                state.play_status = VPS::Pause;
+            }
+            else
+            {
+                state.load_status = VLS::NotLoaded;
+                state.play_status = VPS::NotLoaded;
+            }            
+        };
+
+        std::thread th(load);
+        th.detach();
+    }
+
+
+    void reload_video_async(DisplayState& state)
+    {
+        auto const load = [&]()
+        {
+            state.load_status = VLS::InProgress;
+            auto ok = reload_video(state);
             if (ok)
             {
                 state.load_status = VLS::Loaded;
@@ -515,6 +580,15 @@ namespace internal
             y_min, y_max, 
             "Min: %d", "Max: %d");
 
+        if (!lock_to_display)
+        {
+            scan_region.x_begin = (u32)x_begin;
+            scan_region.x_end = (u32)x_end;
+
+            scan_region.y_begin = (u32)y_begin;
+            scan_region.y_end = (u32)y_end;
+        }
+
         if (ImGui::Button("Reset##scan_region_settings"))
         {
             state.show_scan_region = true;
@@ -525,15 +599,6 @@ namespace internal
         }
         
         if (lock_to_display) { ImGui::EndDisabled(); }
-
-        if (!lock_to_display)
-        {
-            scan_region.x_begin = (u32)x_begin;
-            scan_region.x_end = (u32)x_end;
-
-            scan_region.y_begin = (u32)y_begin;
-            scan_region.y_end = (u32)y_end;
-        }
     }
 
 
