@@ -310,9 +310,14 @@ namespace internal
     }
 
 
-    static void update_display(DisplayState& state)
+    static void update_vfx(DisplayState& state)
     {
         auto display_scale = state.display_scale();
+
+        if (!display_scale || state.load_status != VideoLoadStatus::Loaded)
+        {
+            return;
+        }
 
         auto& vms = state.vms;
         auto& out_rect = vms.out_region;
@@ -368,8 +373,6 @@ namespace internal
         update_out_position(state);
         out_rect = get_crop_rect(vms.out_position, out.width, out.height, vms.out_limit_region);
         img::copy(img::sub_view(src_rgba, out_rect), out);
-        
-        update_display(state);
     }
 
     
@@ -704,6 +707,26 @@ namespace internal
             dst_region.y_begin = (u32)y_min;
             dst_region.y_end = (u32)y_max;
         }
+    }
+
+
+    void start_vfx(DisplayState& state)
+    {
+        state.is_running = true;
+
+        auto const run = [&]()
+        {
+            Stopwatch sw;
+            sw.start();
+            while (state.is_running)
+            {
+                update_vfx(state);
+                cap_framerate(sw, 16);
+            }
+        };
+
+        std::thread th(run);
+        th.detach();
     }
 }
 }

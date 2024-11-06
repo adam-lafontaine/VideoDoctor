@@ -110,6 +110,7 @@ namespace video_display
         ImGui::FileBrowser fb_video;
 
         Vec2Du32 src_dims() { return { vms.src_video.frame_width, vms.src_video.frame_height }; }
+        f32 src_fps() { return vms.src_video.fps; }
         Vec2Du32 out_dims() { auto out = vms.out_view(); return { out.width, out.height }; }
         
         u32 display_scale() { auto w = src_dims().x; return w ? w / display_src_view.width : 0; }
@@ -121,7 +122,47 @@ namespace video_display
         bool show_motion;
         bool show_scan_region;
         bool show_out_region;
+
+        bool is_running;
     };
+}
+
+
+/* internal */
+
+namespace video_display
+{
+namespace internal
+{
+    using VLS = VideoLoadStatus;
+    using VPS = VideoPlayStatus;
+
+
+    static void reset_video_status(DisplayState& state)
+    {
+        state.load_status = VLS::NotLoaded;
+        state.play_status = VPS::NotLoaded;
+    }
+
+    
+    void load_video_async(DisplayState& state);
+
+    void reload_video_async(DisplayState& state);
+
+    void play_video_async(DisplayState& state);
+
+    void pause_video(DisplayState& state);
+
+    void stop_video(DisplayState& state);
+
+    void motion_detection_settings(DisplayState& state);
+
+    void scan_region_settings(DisplayState& state);
+
+    void display_region_settings(DisplayState& state);
+
+    void start_vfx(DisplayState& state);
+}
 }
 
 
@@ -129,6 +170,7 @@ namespace video_display
 {    
     inline void destroy(DisplayState& state)
     { 
+        state.is_running = false;
         destroy_vms(state.vms);
         
         mb::destroy_buffer(state.display_buffer32);        
@@ -180,46 +222,14 @@ namespace video_display
 
         state.show_motion = true;
         state.show_scan_region = true;
-        state.show_out_region = true;        
+        state.show_out_region = true;
+
+        state.is_running = false;
+
+        internal::start_vfx(state);
 
         return true;
     }    
-}
-
-
-/* internal */
-
-namespace video_display
-{
-namespace internal
-{
-    using VLS = VideoLoadStatus;
-    using VPS = VideoPlayStatus;
-
-
-    static void reset_video_status(DisplayState& state)
-    {
-        state.load_status = VLS::NotLoaded;
-        state.play_status = VPS::NotLoaded;
-    }
-
-    
-    void load_video_async(DisplayState& state);
-
-    void reload_video_async(DisplayState& state);
-
-    void play_video_async(DisplayState& state);
-
-    void pause_video(DisplayState& state);
-
-    void stop_video(DisplayState& state);
-
-    void motion_detection_settings(DisplayState& state);
-
-    void scan_region_settings(DisplayState& state);
-
-    void display_region_settings(DisplayState& state);
-}
 }
 
 
@@ -299,10 +309,11 @@ namespace video_display
         }
         
         if (play_pause_disabled) { ImGui::EndDisabled(); }
-
-        auto src_w = state.vms.src_video.frame_width;
-        auto src_h = state.vms.src_video.frame_height;
-        auto src_fps = state.vms.src_video.fps;
+        
+        auto src_dims = state.src_dims();
+        auto src_w = src_dims.x;
+        auto src_h = src_dims.y;
+        auto src_fps = state.src_fps();        
 
         ImGui::Text("%ux%u %3.1f fps", src_w, src_h, src_fps);
        
@@ -338,8 +349,9 @@ namespace video_display
     
     void video_vfx_window(DisplayState& state)
     {
-        auto src_w = state.vms.src_video.frame_width;
-        auto src_h = state.vms.src_video.frame_height;
+        auto src_dims = state.src_dims();
+        auto src_w = src_dims.x;
+        auto src_h = src_dims.y;
         auto display_view = state.display_vfx_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_vfx_texture;
