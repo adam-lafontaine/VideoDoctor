@@ -112,6 +112,38 @@ namespace internal
     using VPS = VideoPlayStatus;
 
 
+    static bool load_src_video(VideoMotionState& vms, fs::path const& video_path)
+    {
+        if (!fs::exists(video_path) || !fs::is_regular_file(video_path))
+        {
+            assert("*** bad video path ***" && false);
+            return false;
+        }
+
+        auto ok = vid::open_video(vms.src_video, video_path.string().c_str());
+        if (!ok)
+        {
+            assert("*** vid::open_video ***" && false);
+            return false;
+        }
+
+        auto w = vms.src_video.frame_width;
+        auto h = vms.src_video.frame_height;
+
+        assert(w && h && "*** No video dimensions ***");
+        
+        u32 crop_w = w / 2;
+        u32 crop_h = h / 2;
+
+        if (!vid::create_frame(vms.out_frame, crop_w, crop_h))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+
     static bool init_vms(VideoMotionState& vms)
     {
         auto w = vms.src_video.frame_width;
@@ -139,33 +171,12 @@ namespace internal
     
     static bool load_video(DisplayState& state)
     {
-        auto path = state.src_video_filepath;
-        if (!fs::exists(path) || !fs::is_regular_file(path))
-        {
-            assert("*** bad video path ***" && false);
-            return false;
-        }
-
         reset_video_status(state);
 
-        auto& video = state.vms.src_video;
-
-        auto ok = vid::open_video(video, state.src_video_filepath.string().c_str());
-        if (!ok)
+        if (!load_src_video(state.vms, state.src_video_filepath))
         {
-            assert("*** vid::open_video ***" && false);
             return false;
         }
-
-        auto w = video.frame_width;
-        auto h = video.frame_height;
-
-        assert(w && h && "*** No video dimensions ***");
-        
-        u32 crop_w = w / 2;
-        u32 crop_h = h / 2;
-
-        vid::create_frame(state.vms.out_frame, crop_w, crop_h);
 
         /*cstr crop_path = OUT_VIDEO_PATH;
         ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
@@ -187,33 +198,12 @@ namespace internal
 
     static bool reload_video(DisplayState& state)
     {
-        auto path = state.src_video_filepath;
-        if (!fs::exists(path) || !fs::is_regular_file(path))
-        {
-            assert("*** bad video path ***" && false);
-            return false;
-        }
-
         reset_video_status(state);
 
-        auto& video = state.vms.src_video;
-
-        vid::close_video(video);
-
-        auto ok = vid::open_video(video, state.src_video_filepath.string().c_str());
-        if (!ok)
+        if (!load_src_video(state.vms, state.src_video_filepath))
         {
-            assert("*** vid::open_video ***" && false);
             return false;
         }
-
-        auto w = video.frame_width;
-        auto h = video.frame_height;
-
-        u32 crop_w = w / 2;
-        u32 crop_h = h / 2;
-
-        vid::create_frame(state.vms.out_frame, crop_w, crop_h);
 
         /*cstr crop_path = OUT_VIDEO_PATH;
         ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
@@ -360,15 +350,15 @@ namespace internal
     }
 
 
-    static void process_frame(DisplayState& state, img::GrayView const& src, img::ImageView const& out)
+    static void process_play_frame(DisplayState& state, vid::VideoFrame src_frame, img::ImageView const& out)
     {
         auto& vms = state.vms;
         auto& out_rect = vms.out_region;
+        
+        auto src_gray = src_frame.gray;
+        auto src_rgba = src_frame.rgba;
 
-        auto src_gray = vid::frame_gray_view(vms.src_video);
-        auto src_rgba = vid::frame_view(vms.src_video);
-
-        motion::update(vms.gm, src_gray, vms.scan_region);        
+        motion::update(vms.gm, src_gray, vms.scan_region);
 
         update_out_position(state);
         out_rect = get_crop_rect(vms.out_position, out.width, out.height, vms.out_limit_region);
@@ -381,16 +371,17 @@ namespace internal
         vid::FrameList src_frames = { state.display_src_frame };
         vid::FrameList dst_frames = { state.display_preview_frame };
 
-        auto const proc = [&](auto const& v_src, auto const& v_out)
+        auto& src_video = state.vms.src_video;
+        auto& dst_frame = state.vms.out_frame;
+
+        auto const proc = [&](auto const& fr_src, auto const& v_out)
         {
-            process_frame(state, v_src, v_out);
+            process_play_frame(state, fr_src, v_out);
         };
 
-        auto const cond = [&](){ return state.play_status == VPS::Play; };
+        auto const cond = [&](){ return state.play_status == VPS::Play; };        
 
-        auto& src = state.vms.src_video;
-
-        if (vid::process_video(src, state.vms.out_frame, proc, src_frames, dst_frames, cond))
+        if (vid::process_video(src_video, dst_frame, proc, src_frames, dst_frames, cond))
         {
             reset_video_status(state);
         }

@@ -57,6 +57,7 @@ namespace video_display
     public:
 
         vid::VideoReader src_video;
+        
         //vid::VideoWriter dst_video;
         vid::FrameRGBA out_frame;
 

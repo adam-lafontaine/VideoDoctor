@@ -60,6 +60,21 @@ namespace video
         return (AVFrame*)frame_rgba.frame_handle;
     }
 
+
+    VideoFrame get_frame(VideoReader const& video)
+    {
+        auto ctx = get_context(video);
+
+        VideoFrame frame;
+        frame.rgba = ctx.frame_rgba.view;
+
+        frame.gray.width = frame.rgba.width;
+        frame.gray.height = frame.rgba.height;
+        frame.gray.matrix_data_ = ctx.frame_av->data[0]; // assume YUV
+
+        return frame;
+    }
+
 }
 
 
@@ -326,9 +341,10 @@ namespace video
 
 namespace video
 {
-    template <class FRAME_FN> //std::function<void(VideoReaderContext const&)>
-    static void for_each_frame(VideoReaderContext const& ctx, FRAME_FN const& func)
+    template <class FN> // std::function<void()>
+    static void for_each_frame(VideoReader const& src, FN const& on_read)
     {
+        auto ctx = get_context(src);
         auto packet = ctx.packet;
         auto decoder = ctx.codec_ctx;
         auto frame = ctx.frame_av;
@@ -343,14 +359,52 @@ namespace video
                 {
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
+                    {                        
                         convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
-                        func(ctx);
+                        on_read();
                     }
                 }
             }
             av_packet_unref(ctx.packet);
         }
+    }
+
+
+    template <class FN, class COND_FN> // std::function<void()>, std::function<bool()>
+    static bool for_each_frame(VideoReader const& src, FN const& on_read, COND_FN const& cond)
+    {
+        auto ctx = get_context(src);
+        auto packet = ctx.packet;
+        auto decoder = ctx.codec_ctx;
+        auto frame = ctx.frame_av;
+        auto stream = ctx.stream;
+
+        bool done = false;
+        auto const read = [&]()
+        { 
+            done = av_read_frame(ctx.format_ctx, packet) < 0;
+            return !done;
+        };
+
+        while (cond() && read()) 
+        {
+            if (packet->stream_index == stream->index) 
+            {
+                // Send packet to decoder
+                if (avcodec_send_packet(decoder, packet) == 0) 
+                {
+                    // Receive frame from decoder
+                    while (avcodec_receive_frame(decoder, frame) == 0) 
+                    {
+                        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
+                        on_read();
+                    }
+                }
+            }
+            av_packet_unref(ctx.packet);
+        }
+
+        return done;
     }
 
 
@@ -379,43 +433,6 @@ namespace video
             }
             av_packet_unref(packet);
         }
-    }
-
-
-    template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&)>, std::function<bool()>
-    static bool for_each_frame(VideoReaderContext const& ctx, FRAME_FN const& func, COND_FN const& cond)
-    {
-        auto packet = ctx.packet;
-        auto decoder = ctx.codec_ctx;
-        auto frame = ctx.frame_av;
-        auto stream = ctx.stream;
-
-        bool done = false;
-        auto const read = [&]()
-        { 
-            done = av_read_frame(ctx.format_ctx, packet) < 0;
-            return !done;
-        };
-
-        while (cond() && read()) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
-                        func(ctx);
-                    }
-                }
-            }
-            av_packet_unref(ctx.packet);
-        }
-
-        return done;
     }
 
 
@@ -637,54 +654,34 @@ namespace video
 
         video.video_handle = 0;
     }
-
-
-    img::ImageView frame_view(VideoReader const& video)
-    {
-        assert(video.video_handle);
-
-        return get_context(video).frame_rgba.view;
-    }
-
-
-    img::GrayView frame_gray_view(VideoReader const& video)
-    {
-        assert(video.video_handle);
-
-        img::GrayView view{};
-
-        view.width = video.frame_width;
-        view.height = video.frame_height;
-        view.matrix_data_ = get_context(video).frame_av->data[0]; // assume YUV
-
-        return view;
-    }
-    
+  
     
     void play_video(VideoReader const& video, FrameList const& frames_out)
     {
-        auto const copy = [&](auto const& src_ctx)
+        auto ctx = get_context(video);
+
+        auto const copy = [&]()
         {
             for (auto& out : frames_out)
             {
-                convert_frame(src_ctx.frame_av, av_frame(out));
+                convert_frame(ctx.frame_av, av_frame(out));
             }
         };
 
-        for_each_frame(get_context(video), copy);
+        for_each_frame(video, copy);
     }
 
-
-    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
     {
-        auto src_view = frame_gray_view(src);
         auto dst_view = dst.view;
 
+        auto src_ctx = get_context(src);
         auto dst_av = av_frame(dst);
 
-        auto const proc = [&](auto const& src_ctx)
+        auto on_read = [&]()
         {
-            cb(src_view, dst_view);
+            cb(get_frame(src), dst_view);
 
             for (auto& out : src_out)
             {
@@ -697,20 +694,20 @@ namespace video
             }
         };
 
-        for_each_frame(get_context(src), proc);
+        for_each_frame(src, on_read);
     }
 
 
-    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
     {
-        auto src_view = frame_gray_view(src);
         auto dst_view = dst.view;
 
+        auto src_ctx = get_context(src);
         auto dst_av = av_frame(dst);
 
-        auto const proc = [&](auto const& src_ctx)
+        auto on_read = [&]()
         {
-            cb(src_view, dst_view);
+            cb(get_frame(src), dst_view);
 
             for (auto& out : src_out)
             {
@@ -723,7 +720,7 @@ namespace video
             }
         };
 
-        return for_each_frame(get_context(src), proc, proc_cond);
+        return for_each_frame(src, on_read, proc_cond);
     }
    
 
@@ -924,7 +921,7 @@ namespace video
     
     void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
     {
-        auto src_view = frame_gray_view(src);
+        /*auto src_view = src.frame.gray;
         auto dst_view = frame_view(dst);
 
         auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
@@ -943,13 +940,13 @@ namespace video
             }
         };
 
-        for_each_frame(get_context(src), get_context(dst), proc);
+        for_each_frame(get_context(src), get_context(dst), proc);*/
     }
     
     
     bool process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
     {
-        auto src_view = frame_gray_view(src);
+        /*auto src_view = src.frame.gray;
         auto dst_view = frame_view(dst);
 
         auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
@@ -968,7 +965,9 @@ namespace video
             }
         };
 
-        return for_each_frame(get_context(src), get_context(dst), proc, proc_cond);
+        return for_each_frame(get_context(src), get_context(dst), proc, proc_cond);*/
+
+        return true;
     }
 
 
