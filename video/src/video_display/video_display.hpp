@@ -33,6 +33,7 @@ namespace video_display
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_DIR = "/home/adam/Repos/VideoDoctor/video/build/";
+    constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/video/build/out.mp4";
 
 
     enum class VideoLoadStatus : u8
@@ -48,6 +49,7 @@ namespace video_display
     {
         NotLoaded = 0,
         Play,
+        Generate,
         Pause
     };
 
@@ -57,9 +59,6 @@ namespace video_display
     public:
 
         vid::VideoReader src_video;
-        
-        //vid::VideoWriter dst_video;
-        vid::FrameRGBA out_frame;
 
         motion::GradientMotion gm;
 
@@ -69,8 +68,6 @@ namespace video_display
         Rect2Du32 scan_region;
         Rect2Du32 out_limit_region;
         Rect2Du32 out_region;
-
-        img::ImageView out_view() { return out_frame.view; }
     };
 
 
@@ -79,8 +76,6 @@ namespace video_display
         motion::destroy(vms.gm);
 
         vid::close_video(vms.src_video);
-        vid::destroy_frame(vms.out_frame);
-        //vid::close_video(state.dst_video); //!
     }
 
 
@@ -89,6 +84,9 @@ namespace video_display
     public:
 
         VideoMotionState vms;
+
+        vid::VideoWriter dst_video;
+        vid::FrameRGBA out_frame;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;        
@@ -110,9 +108,13 @@ namespace video_display
         fs::path src_video_filepath;
         ImGui::FileBrowser fb_video;
 
+        u32 out_width;
+        u32 out_height;
+
         Vec2Du32 src_dims() { return { vms.src_video.frame_width, vms.src_video.frame_height }; }
         f32 src_fps() { return vms.src_video.fps; }
-        Vec2Du32 out_dims() { auto out = vms.out_view(); return { out.width, out.height }; }
+
+        img::ImageView out_view() { return out_frame.view; }
         
         u32 display_scale() { auto w = src_dims().x; return w ? w / display_src_view.width : 0; }
 
@@ -124,7 +126,7 @@ namespace video_display
         bool show_scan_region;
         bool show_out_region;
 
-        bool is_running;
+        bool vfx_running;
     };
 }
 
@@ -152,6 +154,8 @@ namespace internal
 
     void play_video_async(DisplayState& state);
 
+    void generate_video_async(DisplayState& state);
+
     void pause_video(DisplayState& state);
 
     void stop_video(DisplayState& state);
@@ -171,8 +175,11 @@ namespace video_display
 {    
     inline void destroy(DisplayState& state)
     { 
-        state.is_running = false;
+        state.vfx_running = false;
         destroy_vms(state.vms);
+        
+        vid::destroy_frame(state.out_frame);
+        vid::close_video(state.dst_video); //!
         
         mb::destroy_buffer(state.display_buffer32);        
     }
@@ -225,7 +232,7 @@ namespace video_display
         state.show_scan_region = true;
         state.show_out_region = true;
 
-        state.is_running = false;
+        state.vfx_running = false;
 
         internal::start_vfx(state);
 
@@ -294,13 +301,19 @@ namespace video_display
         }
         else if (state.play_status == VPS::Pause)
         {
-            ImGui::SameLine();
+            ImGui::SameLine();            
             if (ImGui::Button("Play"))
             {
                 internal::play_video_async(state);
             }
+
+            ImGui::SameLine();            
+            if (ImGui::Button("Generate"))
+            {
+                internal::generate_video_async(state);
+            }
         }
-        else if (state.play_status == VPS::Play)
+        else if (state.play_status == VPS::Play || state.play_status == VPS::Generate)
         {
             ImGui::SameLine();
             if (ImGui::Button("Pause"))
@@ -333,7 +346,7 @@ namespace video_display
 
     void video_preview_window(DisplayState& state)
     {
-        auto view = state.vms.out_view();
+        auto view = state.out_view();
         auto display_view = state.display_preview_view;
         auto dims = ImVec2(display_view.width, display_view.height);
         auto texture = state.display_preview_texture;        

@@ -75,6 +75,21 @@ namespace video
         return frame;
     }
 
+
+    VideoFrame get_frame(VideoWriter const& writer)
+    {
+        auto ctx = get_context(writer);
+
+        VideoFrame frame;
+        frame.rgba = ctx.frame_rgba.view;
+
+        frame.gray.width = frame.rgba.width;
+        frame.gray.height = frame.rgba.height;
+        frame.gray.matrix_data_ = ctx.frame_av->data[0]; // assume YUV
+
+        return frame;
+    }
+
 }
 
 
@@ -408,9 +423,12 @@ namespace video
     }
 
 
-    template <class FRAME_FN> //std::function<void(VideoReaderContext const&, VideoWriterContext const&)>
-    static void for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func)
+    /*template <class FN> // std::function<void()>
+    static void for_each_frame(VideoReader const& src, VideoWriter const& dst, FN const& on_read)
     {
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
+
         auto packet = src_ctx.packet;
         auto decoder = src_ctx.codec_ctx;
         auto frame = src_ctx.frame_av;
@@ -427,7 +445,7 @@ namespace video
                     while (avcodec_receive_frame(decoder, frame) == 0) 
                     {
                         convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-                        func(src_ctx, dst_ctx);                        
+                        on_read();
                     }
                 }
             }
@@ -470,7 +488,7 @@ namespace video
         }
 
         return done;
-    }
+    }*/
 }
 
 
@@ -895,38 +913,23 @@ namespace video
         av_write_trailer(ctx.format_ctx); 
         close_video(video);
     }
-
-
-    img::ImageView frame_view(VideoWriter const& video)
-    {
-        assert(video.video_handle);
-
-        return get_context(video).frame_rgba.view;
-    }
-
-
-    img::GrayView frame_gray_view(VideoWriter const& video)
-    {
-        assert(video.video_handle);
-
-        img::GrayView view{};
-
-        view.width = video.frame_width;
-        view.height = video.frame_height;
-        view.matrix_data_ = get_context(video).frame_av->data[0]; // assume YUV
-
-        return view;
-    }
     
     
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
     {
-        /*auto src_view = src.frame.gray;
-        auto dst_view = frame_view(dst);
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
 
-        auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
+        auto src_av = src_ctx.frame_av;
+        auto src_rgba = av_frame(src_ctx.frame_rgba);
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
+
+        auto const on_read = [&]()
         {
-            cb(src_view, dst_view);
+            cb(get_frame(src), get_frame(dst).rgba);
+            convert_frame(dst_rgba, dst_av);
+            encode_frame(dst_ctx, src_av->pts);         
 
             for (auto& out : src_out)
             {
@@ -940,19 +943,26 @@ namespace video
             }
         };
 
-        for_each_frame(get_context(src), get_context(dst), proc);*/
+        for_each_frame(src, on_read);
     }
     
     
-    bool process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
     {
-        /*auto src_view = src.frame.gray;
-        auto dst_view = frame_view(dst);
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
 
-        auto const proc = [&](auto const& src_ctx, auto const& dst_ctx)
+        auto src_av = src_ctx.frame_av;
+        auto src_rgba = av_frame(src_ctx.frame_rgba);
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
+
+        auto const on_read = [&]()
         {
-            cb(src_view, dst_view);
-
+            cb(get_frame(src), get_frame(dst).rgba);
+            convert_frame(dst_rgba, dst_av);
+            encode_frame(dst_ctx, src_av->pts);
+            
             for (auto& out : src_out)
             {
                 convert_frame(src_ctx.frame_av, av_frame(out));
@@ -965,9 +975,7 @@ namespace video
             }
         };
 
-        return for_each_frame(get_context(src), get_context(dst), proc, proc_cond);*/
-
-        return true;
+        return for_each_frame(src, on_read, proc_cond);
     }
 
 
@@ -983,7 +991,10 @@ namespace video
     // Deprecated
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out)
     {
-        auto const crop = [&](auto const& src_ctx, auto const& dst_ctx)
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
+
+        auto const crop = [&]()
         {            
             crop_frame(src_ctx, dst_ctx);
 
@@ -999,7 +1010,7 @@ namespace video
             }
         };
 
-        for_each_frame(get_context(src), get_context(dst), crop);
+        for_each_frame(src, crop);
     }
 
 

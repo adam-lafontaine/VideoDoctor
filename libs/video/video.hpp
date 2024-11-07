@@ -53,6 +53,8 @@ namespace video
 
     VideoFrame get_frame(VideoReader const& video);
 
+    VideoFrame get_frame(VideoWriter const& writer);
+
 
     using FrameList = std::initializer_list<FrameRGBA>;
     
@@ -60,8 +62,6 @@ namespace video
     using fn = std::function<T>;
 
     using fn_frame_to_rgba = fn<void(VideoFrame, img::ImageView const&)>;
-
-    using fn_gray_to_rgba = fn<void(img::GrayView const&, img::ImageView const&)>;
     using fn_bool = fn<bool()>;
 
 
@@ -88,14 +88,10 @@ namespace video
     void close_video(VideoWriter& video);
     
     void save_and_close_video(VideoWriter& video);
-
-    img::ImageView frame_view(VideoWriter const& video);
-
-    img::GrayView frame_gray_view(VideoWriter const& video);
     
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
 
-    bool process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
     
 }
 

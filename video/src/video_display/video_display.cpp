@@ -127,19 +127,6 @@ namespace internal
             return false;
         }
 
-        auto w = vms.src_video.frame_width;
-        auto h = vms.src_video.frame_height;
-
-        assert(w && h && "*** No video dimensions ***");
-        
-        u32 crop_w = w / 2;
-        u32 crop_h = h / 2;
-
-        if (!vid::create_frame(vms.out_frame, crop_w, crop_h))
-        {
-            return false;
-        }
-
         return true;
     }
 
@@ -173,18 +160,28 @@ namespace internal
     {
         reset_video_status(state);
 
-        if (!load_src_video(state.vms, state.src_video_filepath))
+        auto& vms = state.vms;
+
+        if (!load_src_video(vms, state.src_video_filepath))
         {
             return false;
         }
 
-        /*cstr crop_path = OUT_VIDEO_PATH;
-        ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
-        if (!ok)
+        auto w = vms.src_video.frame_width;
+        auto h = vms.src_video.frame_height;
+
+        assert(w && h && "*** No video dimensions ***");
+        
+        u32 crop_w = w / 2; // TODO!
+        u32 crop_h = h / 2;
+
+        if (!vid::create_frame(state.out_frame, crop_w, crop_h))
         {
-            assert("*** vid::create_video ***" && false);
             return false;
-        }*/
+        }
+
+        state.out_width = crop_w;
+        state.out_height = crop_h;
 
         if (!init_vms(state.vms))
         {
@@ -204,14 +201,6 @@ namespace internal
         {
             return false;
         }
-
-        /*cstr crop_path = OUT_VIDEO_PATH;
-        ok = vid::create_video(state.src_video, state.dst_video, crop_path, crop_w, crop_h);
-        if (!ok)
-        {
-            assert("*** vid::create_video ***" && false);
-            return false;
-        }*/
 
         return true;
     }
@@ -350,7 +339,7 @@ namespace internal
     }
 
 
-    static void process_play_frame(DisplayState& state, vid::VideoFrame src_frame, img::ImageView const& out)
+    static void process_frame(DisplayState& state, vid::VideoFrame src_frame, img::ImageView const& out)
     {
         auto& vms = state.vms;
         auto& out_rect = vms.out_region;
@@ -372,11 +361,11 @@ namespace internal
         vid::FrameList dst_frames = { state.display_preview_frame };
 
         auto& src_video = state.vms.src_video;
-        auto& dst_frame = state.vms.out_frame;
+        auto& dst_frame = state.out_frame;
 
         auto const proc = [&](auto const& fr_src, auto const& v_out)
         {
-            process_play_frame(state, fr_src, v_out);
+            process_frame(state, fr_src, v_out);
         };
 
         auto const cond = [&](){ return state.play_status == VPS::Play; };        
@@ -384,6 +373,38 @@ namespace internal
         if (vid::process_video(src_video, dst_frame, proc, src_frames, dst_frames, cond))
         {
             reset_video_status(state);
+        }
+    }
+
+
+    static void process_generate_video(DisplayState& state)
+    {
+        vid::FrameList src_frames = { state.display_src_frame };
+        vid::FrameList dst_frames = { state.display_preview_frame };
+
+        auto& src_video = state.vms.src_video;
+        auto& dst_video = state.dst_video;        
+
+        // TODO
+        //cstr out_path = (fs::path(OUT_VIDEO_DIR) / "out.mp4").string().c_str();
+        auto ok = vid::create_video(src_video, dst_video, OUT_VIDEO_PATH, state.out_width, state.out_height);
+        if (!ok)
+        {
+            assert("*** vid::create_video ***" && false);
+            return;
+        }
+
+        auto const proc = [&](auto const& fr_src, auto const& v_out)
+        {
+            process_frame(state, fr_src, v_out);
+        };
+
+        auto const cond = [&](){ return state.play_status == VPS::Generate; };   
+
+        if (vid::process_video(src_video, dst_video, proc, src_frames, dst_frames, cond))
+        {
+            reset_video_status(state);
+            vid::save_and_close_video(dst_video);
         }
     }
 
@@ -451,6 +472,27 @@ namespace internal
         };
 
         std::thread th(play);
+        th.detach();
+    }
+
+
+    void generate_video_async(DisplayState& state)
+    {
+        using VPS = VideoPlayStatus;
+
+        if (state.play_status != VPS::Pause)
+        {
+            return;
+        }
+
+        auto const gen = [&]()
+        {
+            state.play_status = VPS::Generate;
+            process_generate_video(state);
+            state.play_status = VPS::Pause;
+        };
+
+        std::thread th(gen);
         th.detach();
     }
 
@@ -614,7 +656,7 @@ namespace internal
             return;
         }
 
-        auto dst_view = state.vms.out_view();
+        auto dst_view = state.out_view();
         int dst_width = dst_view.width;
         int dst_height = dst_view.height;
 
@@ -703,13 +745,13 @@ namespace internal
 
     void start_vfx(DisplayState& state)
     {
-        state.is_running = true;
+        state.vfx_running = true;
 
         auto const run = [&]()
         {
             Stopwatch sw;
             sw.start();
-            while (state.is_running)
+            while (state.vfx_running)
             {
                 update_vfx(state);
                 cap_framerate(sw, 16);
