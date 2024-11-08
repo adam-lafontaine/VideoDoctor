@@ -119,8 +119,6 @@ namespace video_display
         u32 display_scale() { auto w = src_dims().x; return w ? w / display_src_view.width : 0; }
 
         bool motion_on;
-        bool motion_x_on;
-        bool motion_y_on;
 
         bool show_motion;
         bool show_scan_region;
@@ -225,8 +223,6 @@ namespace video_display
         fb.SetDirectory(fs::path(SRC_VIDEO_DIR));
 
         state.motion_on = true;
-        state.motion_x_on = true;
-        state.motion_y_on = true;
 
         state.show_motion = true;
         state.show_scan_region = true;

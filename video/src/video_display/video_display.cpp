@@ -112,6 +112,34 @@ namespace internal
     using VPS = VideoPlayStatus;
 
 
+    static void cap_framerate(Stopwatch& sw, f64 target_ns)
+    {
+        constexpr f64 fudge = 0.9;
+
+        auto sleep_ns = target_ns - sw.get_time_nano();
+        if (sleep_ns > 0)
+        {
+            std::this_thread::sleep_for(std::chrono::nanoseconds((i64)(sleep_ns * fudge)));
+        }
+
+        sw.start();
+    }
+
+
+    static fs::path timestamp_file_path(fs::path const& dir, cstr name, cstr ext)
+    {
+        auto time = std::chrono::system_clock::now().time_since_epoch();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
+
+        char buffer[256] = { 0 };
+        auto str = span::make_view(256, buffer);
+
+        span::sprintf(str, "%s_%I64d%s", name, ms, ext);
+
+        return dir / span::to_cstr(str);
+    }
+
+
     static bool load_src_video(VideoMotionState& vms, fs::path const& video_path)
     {
         if (!fs::exists(video_path) || !fs::is_regular_file(video_path))
@@ -206,20 +234,6 @@ namespace internal
     }
 
 
-    static void cap_framerate(Stopwatch& sw, f64 target_ns)
-    {
-        constexpr f64 fudge = 0.9;
-
-        auto sleep_ns = target_ns - sw.get_time_nano();
-        if (sleep_ns > 0)
-        {
-            std::this_thread::sleep_for(std::chrono::nanoseconds((i64)(sleep_ns * fudge)));
-        }
-
-        sw.start();
-    }
-
-
     static Rect2Du32 get_crop_rect(Point2Du32 pt, u32 crop_w, u32 crop_h, Rect2Du32 bounds)
     {
         auto w = bounds.x_end - bounds.x_begin;
@@ -275,17 +289,7 @@ namespace internal
 
         auto v_px = vec::mul(d_px, acc);
 
-        auto pos = vec::to_unsigned<u32>(vec::add(dp, v_px));
-
-        if (state.motion_x_on)
-        {
-            vms.out_position.x = pos.x;
-        }
-
-        if (state.motion_y_on)
-        {
-            vms.out_position.y = pos.y;
-        }
+        vms.out_position = vec::to_unsigned<u32>(vec::add(dp, v_px));
     }
 
 
@@ -377,20 +381,6 @@ namespace internal
     }
 
 
-    static fs::path timestamp_file_path(fs::path const& dir, cstr name, cstr ext)
-    {
-        auto time = std::chrono::system_clock::now().time_since_epoch();
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
-
-        char buffer[256] = { 0 };
-        auto str = span::make_view(256, buffer);
-
-        span::sprintf(str, "%s_%I64d%s", name, ms, ext);
-
-        return dir / span::to_cstr(str);
-    }
-
-
     static void process_generate_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_src_frame };
@@ -398,7 +388,7 @@ namespace internal
 
         auto& src_video = state.vms.src_video;
         auto& dst_video = state.dst_video;
-        
+
         auto temp_path = OUT_VIDEO_TEMP_PATH;
         auto ok = vid::create_video(src_video, dst_video, temp_path, state.out_width, state.out_height);
         if (!ok)
@@ -534,12 +524,35 @@ namespace internal
         ImGui::Checkbox("ON/OFF", &state.motion_on);
 
         ImGui::SameLine();
-        ImGui::Checkbox("X", &state.motion_x_on);
-
-        ImGui::SameLine();
-        ImGui::Checkbox("Y", &state.motion_y_on);
 
         ImGui::Checkbox("Show motion", &state.show_motion);
+
+        /*auto orientation_disabled = state.play_status == VideoPlayStatus::Generate;
+
+        if (orientation_disabled) { ImGui::BeginDisabled(); }
+
+        static int orientation = 0;
+        ImGui::RadioButton("Landscape", &orientation, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Portrait", &orientation, 1);
+
+        if (orientation_disabled) { ImGui::BeginDisabled(); }
+
+        auto w = state.out_width;
+        auto h = state.out_height;
+
+        switch (orientation)
+        {
+        case 0:
+            state.out_width = num::max(w, h);
+            state.out_height = num::min(w, h);
+            break;
+        
+        default:
+            state.out_width = num::min(w, h);
+            state.out_height = num::max(w, h);
+            break;
+        }*/
 
         ImGui::Text("Sensitivity");
         ImGui::SliderFloat(
@@ -566,8 +579,6 @@ namespace internal
         if (ImGui::Button("Reset##motion_detection_settings"))
         {
             state.motion_on = true;
-            state.motion_x_on = true;
-            state.motion_y_on = true;
             state.show_motion = true;
             vms.gm.edge_motion.motion_sensitivity = 0.9f;
             vms.gm.edge_motion.locate_sensitivity = 0.98;
