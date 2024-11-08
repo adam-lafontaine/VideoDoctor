@@ -19,6 +19,14 @@ namespace video
     };
 
 
+    class VideoFrame
+    {
+    public:
+        img::ImageView rgba;
+        img::GrayView gray;
+    };
+
+
     class VideoReader
     {
     public:
@@ -43,12 +51,18 @@ namespace video
     };
 
 
+    VideoFrame get_frame(VideoReader const& video);
+
+    VideoFrame get_frame(VideoWriter const& writer);
+
+
     using FrameList = std::initializer_list<FrameRGBA>;
     
     template <class T>
     using fn = std::function<T>;
 
-    using fn_gray_to_rgba = fn<void(img::GrayView const&, img::ImageView const&)>;
+    using fn_frame_to_rgba = fn<void(VideoFrame, img::ImageView const&)>;
+    using fn_bool = fn<bool()>;
 
 
     bool create_frame(FrameRGBA& frame, u32 width, u32 height);
@@ -62,13 +76,11 @@ namespace video
 
     void close_video(VideoReader& video);
 
-    img::ImageView frame_view(VideoReader const& video);
-
-    img::GrayView frame_gray_view(VideoReader const& video);
-
     void play_video(VideoReader const& video, FrameList const& frames_out);
 
-    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+
+    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
     
     
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height);
@@ -76,13 +88,17 @@ namespace video
     void close_video(VideoWriter& video);
     
     void save_and_close_video(VideoWriter& video);
-
-    img::ImageView frame_view(VideoWriter const& video);
-
-    img::GrayView frame_gray_view(VideoWriter const& video);
     
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_gray_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
     
+}
+
+
+namespace video
+{
+
 }
 
 

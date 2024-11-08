@@ -92,6 +92,8 @@ namespace image
     void fill(ImageView const& view, Pixel color)
     {
         assert(view.matrix_data_);
+        assert(view.width);
+        assert(view.height);
 
         span::fill_32(to_span(view), color);
     }
@@ -100,6 +102,8 @@ namespace image
     void fill(SubView const& view, Pixel color)
     {
         assert(view.matrix_data_);
+        assert(view.width);
+        assert(view.height);
 
         for (u32 y = 0; y < view.height; y++)
         {
@@ -111,6 +115,8 @@ namespace image
     void fill(GrayView const& view, u8 value)
     {
         assert(view.matrix_data_);
+        assert(view.width);
+        assert(view.height);
 
         span::fill_8(to_span(view), value);
     }
@@ -119,6 +125,8 @@ namespace image
     void fill(GraySubView const& view, u8 value)
     {
         assert(view.matrix_data_);
+        assert(view.width);
+        assert(view.height);
 
         for (u32 y = 0; y < view.height; y++)
         {
@@ -602,6 +610,12 @@ namespace image
         auto w = region.width;
         auto h = region.height;
         auto t = thick;
+
+        auto ok = w && h && t;
+        if (!ok)
+        {
+            return;
+        }
 
         auto top    = make_rect(0,     0,     w, t);
         auto bottom = make_rect(0,     h - t, w, t);
