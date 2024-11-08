@@ -32,8 +32,8 @@ namespace video_display
     constexpr u32 PROCESS_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
+    constexpr auto OUT_VIDEO_TEMP_PATH = "./vdtemp.mp4";
     constexpr auto OUT_VIDEO_DIR = "/home/adam/Repos/VideoDoctor/video/build/";
-    constexpr auto OUT_VIDEO_PATH = "/home/adam/Repos/VideoDoctor/video/build/out.mp4";
 
 
     enum class VideoLoadStatus : u8

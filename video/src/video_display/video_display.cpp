@@ -383,11 +383,12 @@ namespace internal
         vid::FrameList dst_frames = { state.display_preview_frame };
 
         auto& src_video = state.vms.src_video;
-        auto& dst_video = state.dst_video;        
+        auto& dst_video = state.dst_video;
 
         // TODO
-        //cstr out_path = (fs::path(OUT_VIDEO_DIR) / "out.mp4").string().c_str();
-        auto ok = vid::create_video(src_video, dst_video, OUT_VIDEO_PATH, state.out_width, state.out_height);
+        auto temp_path = OUT_VIDEO_TEMP_PATH;
+        auto out_path = (fs::path(OUT_VIDEO_DIR) / "out.mp4");
+        auto ok = vid::create_video(src_video, dst_video, temp_path, state.out_width, state.out_height);
         if (!ok)
         {
             assert("*** vid::create_video ***" && false);
@@ -405,6 +406,7 @@ namespace internal
         {
             reset_video_status(state);
             vid::save_and_close_video(dst_video);
+            fs::rename(temp_path, out_path);
         }
     }
 
