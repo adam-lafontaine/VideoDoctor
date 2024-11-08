@@ -8,13 +8,12 @@
 template <class F>
 using fn = std::function<F>;
 
-//#define SPAN_STRING
+#define SPAN_STRING
 
 
 #ifdef SPAN_STRING
 
 #include "../qsprintf/qsprintf.hpp"
-#include <cstring>
 
 
 class StringView

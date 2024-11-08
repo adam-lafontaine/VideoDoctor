@@ -80,6 +80,17 @@ memory_buffer_h += $(alloc_type_h)
 #***********
 
 
+#*** qsprintf ***
+
+qsprintf   := $(libs)/qsprintf
+
+qsprintf_h := $(qsprintf)/qsprintf.hpp
+
+qsprintf_c := $(qsprintf)/qsprintf.cpp
+
+#************
+
+
 #*** span ***
 
 span := $(libs)/span
@@ -87,7 +98,7 @@ span := $(libs)/span
 span_h := $(span)/span.hpp
 span_h += $(memory_buffer_h)
 span_h += $(stack_buffer_h)
-#span_h += $(qsprintf_h)
+span_h += $(qsprintf_h)
 
 span_c := $(span)/span.cpp
 span_c += $(span_h)
@@ -157,6 +168,7 @@ main_dep += $(pltfm)/main_o.cpp
 main_dep += $(alloc_type_c)
 main_dep += $(image_c)
 main_dep += $(span_c)
+main_dep += $(qsprintf_c)
 main_dep += $(video_c)
 main_dep += $(motion_c)
 main_dep += $(video_display_c)

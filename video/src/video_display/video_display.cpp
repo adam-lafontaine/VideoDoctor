@@ -377,6 +377,20 @@ namespace internal
     }
 
 
+    static fs::path timestamp_file_path(fs::path const& dir, cstr name, cstr ext)
+    {
+        auto time = std::chrono::system_clock::now().time_since_epoch();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
+
+        char buffer[256] = { 0 };
+        auto str = span::make_view(256, buffer);
+
+        span::sprintf(str, "%s_%I64d%s", name, ms, ext);
+
+        return dir / span::to_cstr(str);
+    }
+
+
     static void process_generate_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_src_frame };
@@ -384,10 +398,8 @@ namespace internal
 
         auto& src_video = state.vms.src_video;
         auto& dst_video = state.dst_video;
-
-        // TODO
+        
         auto temp_path = OUT_VIDEO_TEMP_PATH;
-        auto out_path = (fs::path(OUT_VIDEO_DIR) / "out.mp4");
         auto ok = vid::create_video(src_video, dst_video, temp_path, state.out_width, state.out_height);
         if (!ok)
         {
@@ -406,7 +418,7 @@ namespace internal
         {
             reset_video_status(state);
             vid::save_and_close_video(dst_video);
-            fs::rename(temp_path, out_path);
+            fs::rename(temp_path, timestamp_file_path(OUT_VIDEO_DIR, "out_video", ".mp4"));
         }
     }
 
