@@ -12,7 +12,7 @@ GPP += -mavx
 NO_FLAGS := 
 SDL2   := `sdl2-config --cflags --libs`
 OPENGL := -lGL -ldl
-FFMPEG := -lavformat -lavcodec -lavutil -lswscale 
+FFMPEG := -lavformat -lavcodec -lavutil -lswscale
 #OPENCV := `pkg-config --cflags --libs opencv4`
 
 ALL_LFLAGS := $(SDL2) $(OPENGL) $(FFMPEG) -lpthread
