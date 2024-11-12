@@ -188,7 +188,9 @@ namespace internal
     
     static bool set_out_dimensions(DisplayState& state, u32 width, u32 height)
     {
-        if (!vid::create_frame(state.out_frame, width, height))
+        img::destroy_image(state.out_image);
+
+        if (!img::create_image(state.out_image, width, height, "out_image"))
         {
             return false;
         }
@@ -382,40 +384,62 @@ namespace internal
     }
 
 
-    static void process_frame(DisplayState& state, vid::VideoFrame src_frame, img::ImageView const& out)
+    static void process_frame_read(DisplayState& state, vid::VideoFrame src_frame)
     {
         auto& vms = state.vms;
         auto& out_rect = vms.out_region;
         
         auto src_gray = src_frame.gray;
         auto src_rgba = src_frame.rgba;
+        auto out = state.out_view();
 
         motion::update(vms.gm, src_gray, vms.scan_region);
         update_out_position(state);
 
-        out_rect = get_crop_rect(vms.out_position, out.width, out.height, vms.out_limit_region);
+        auto w = state.out_width;
+        auto h = state.out_height;
+
+        out_rect = get_crop_rect(vms.out_position, w, h, vms.out_limit_region);
         img::copy(img::sub_view(src_rgba, out_rect), out);
-        //img::scale_down(out, state.preview_dst);
         img::resize(out, state.preview_dst);
+    }
+
+
+    static void process_frame_write(DisplayState& state, vid::VideoFrame src_frame, img::ImageView const& dst)
+    {
+        auto& vms = state.vms;
+        auto& out_rect = vms.out_region;
+        
+        auto src_gray = src_frame.gray;
+        auto src_rgba = src_frame.rgba;
+        auto out = state.out_view();
+
+        motion::update(vms.gm, src_gray, vms.scan_region);
+        update_out_position(state);
+
+        auto w = state.out_width;
+        auto h = state.out_height;
+
+        out_rect = get_crop_rect(vms.out_position, w, h, vms.out_limit_region);
+        img::copy(img::sub_view(src_rgba, out_rect), out);
+        img::resize(out, state.preview_dst);
+
+        img::copy(out, dst);
     }
 
     
     static void process_play_video(DisplayState& state)
     {
-        vid::FrameList src_frames = { state.display_src_frame };
-        vid::FrameList dst_frames = {};
-
         auto& src_video = state.vms.src_video;
-        auto& dst_frame = state.out_frame;
 
-        auto const proc = [&](auto const& fr_src, auto const& v_out)
+        auto const proc = [&](auto const& fr_src)
         {
-            process_frame(state, fr_src, v_out);            
+            process_frame_read(state, fr_src);            
         };
 
         auto const cond = [&](){ return state.play_status == VPS::Play; };        
 
-        if (vid::process_video(src_video, dst_frame, proc, src_frames, dst_frames, cond))
+        if (vid::process_video(src_video, proc, cond))
         {
             reset_video_status(state);
         }
@@ -424,9 +448,6 @@ namespace internal
 
     static void process_generate_video(DisplayState& state)
     {
-        vid::FrameList src_frames = { state.display_src_frame };
-        vid::FrameList dst_frames = { };
-
         auto& src_video = state.vms.src_video;
         auto& dst_video = state.dst_video;
 
@@ -440,12 +461,12 @@ namespace internal
 
         auto const proc = [&](auto const& fr_src, auto const& v_out)
         {
-            process_frame(state, fr_src, v_out);
+            process_frame_write(state, fr_src, v_out);
         };
 
         auto const cond = [&](){ return state.play_status == VPS::Generate; };   
 
-        if (vid::process_video(src_video, dst_video, proc, src_frames, dst_frames, cond))
+        if (vid::process_video(src_video, dst_video, proc, cond))
         {
             reset_video_status(state);
             vid::save_and_close_video(dst_video);

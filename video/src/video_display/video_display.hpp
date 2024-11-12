@@ -86,16 +86,16 @@ namespace video_display
         VideoMotionState vms;
 
         vid::VideoWriter dst_video;
-        vid::FrameRGBA out_frame;
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
-        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;        
+        VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
+
+        img::Image out_image;
 
         img::ImageView vfx_view;
 
         img::ImageView display_src_view;
         ImTextureID display_src_texture;
-        vid::FrameRGBA display_src_frame;
 
         img::ImageView display_vfx_view;
         ImTextureID display_vfx_texture;
@@ -112,11 +112,11 @@ namespace video_display
         u32 out_height;
         img::SubView preview_dst;
 
+        img::ImageView out_view() { return img::make_view(out_image); }
+
         Vec2Du32 src_dims() { return { vms.src_video.frame_width, vms.src_video.frame_height }; }
         f32 src_fps() { return vms.src_video.fps; }
-
-        img::ImageView out_view() { return out_frame.view; }
-        
+                
         u32 display_scale() { auto w = src_dims().x; return w ? w / display_src_view.width : 0; }
 
         bool motion_on;
@@ -177,10 +177,10 @@ namespace video_display
         state.vfx_running = false;
         destroy_vms(state.vms);
         
-        vid::destroy_frame(state.out_frame);
         vid::close_video(state.dst_video); //!
         
-        mb::destroy_buffer(state.display_buffer32);        
+        mb::destroy_buffer(state.display_buffer32);
+        img::destroy_image(state.out_image);
     }
 
 
@@ -189,7 +189,7 @@ namespace video_display
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;
 
-        auto n32 = 3;
+        auto n32 = 4;
         auto n_pixels32 = display_w * display_h * n32;
 
         state.display_buffer32 = img::create_buffer32(n_pixels32, "buffer32");
@@ -205,13 +205,7 @@ namespace video_display
         state.vfx_view = make_display_view();
         state.display_vfx_view = make_display_view();
         state.display_preview_view = make_display_view();
-
-        if (!vid::create_frame(state.display_src_frame, display_w, display_h))
-        {
-            return false;
-        }
-
-        state.display_src_view = state.display_src_frame.view;        
+        state.display_src_view = make_display_view();
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
