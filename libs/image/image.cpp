@@ -312,16 +312,9 @@ namespace image
 
 namespace image
 {
-    void scale_down(ImageView const& src, ImageView const& dst)
+    template <class SRC, class DST>
+    static void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
     {
-        auto scale = src.width / dst.width;
-
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(src.width == scale * dst.width);
-        assert(src.height == scale * dst.height);
-        assert(scale > 1);
-        
         f32 const i_scale = 1.0f / (scale * scale);
 
         f32 red = 0.0f;
@@ -394,6 +387,34 @@ namespace image
                 rd[xd] = (u8)gray;
             }
         }
+    }
+
+
+    void scale_down(ImageView const& src, ImageView const& dst)
+    {
+        auto scale = src.width / dst.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        scale_down_rgba(src, dst, scale);
+    }
+
+
+    void scale_down(ImageView const& src, SubView const& dst)
+    {
+        auto scale = src.width / dst.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        scale_down_rgba(src, dst, scale);
     }
 
 

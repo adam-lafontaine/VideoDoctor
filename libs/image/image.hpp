@@ -371,6 +371,8 @@ namespace image
 {
     void scale_down(ImageView const& src, ImageView const& dst);
 
+    void scale_down(ImageView const& src, SubView const& dst);
+
     void scale_down(GrayView const& src, GrayView const& dst);
 
     void scale_down(GraySubView const& src, GrayView const& dst);

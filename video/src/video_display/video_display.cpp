@@ -167,6 +167,8 @@ namespace internal
         u32 process_w = PROCESS_IMAGE_WIDTH;
         u32 process_h = PROCESS_IMAGE_HEIGHT;
 
+        motion::destroy(vms.gm);
+
         if (!motion::create(vms.gm, process_w, process_h))
         {
             return false;
@@ -179,6 +181,45 @@ namespace internal
 
         vms.out_limit_region = img::make_rect(w, h);
         vms.scan_region = img::make_rect(w, h);
+
+        return true;
+    }
+    
+    
+    static bool set_out_dimensions(DisplayState& state, u32 width, u32 height)
+    {
+        if (!vid::create_frame(state.out_frame, width, height))
+        {
+            return false;
+        }
+
+        state.out_width = width;
+        state.out_height = height;
+
+        auto display_w = state.display_preview_view.width;
+        auto display_h = state.display_preview_view.height;
+
+        auto wr = (f32)width / display_w;
+        auto hr = (f32)height / display_h;
+
+        u32 w = display_w;
+        u32 h = display_h;
+
+        if (wr > hr)
+        {
+            h = w * height / width;
+        }
+        else
+        {
+            w = h * width / height;
+        }
+
+        auto x = (display_w - w) / 2;
+        auto y = (display_h - h) / 2;
+
+        auto r = img::make_rect(x, y, w, h);
+
+        state.preview_dst = img::sub_view(state.display_preview_view, r);
 
         return true;
     }
@@ -199,21 +240,17 @@ namespace internal
         auto h = vms.src_video.frame_height;
 
         assert(w && h && "*** No video dimensions ***");
-        
-        u32 crop_w = w / 2; // TODO!
-        u32 crop_h = h / 2;
-
-        if (!vid::create_frame(state.out_frame, crop_w, crop_h))
-        {
-            return false;
-        }
-
-        state.out_width = crop_w;
-        state.out_height = crop_h;
 
         if (!init_vms(state.vms))
         {
             assert("*** init_vms ***" && false);
+            return false;
+        }
+
+        // portrait
+        if (!set_out_dimensions(state, h / 2, h))
+        {
+            assert("*** set_out_dimensions ***" && false);
             return false;
         }
 
@@ -352,24 +389,25 @@ namespace internal
         auto src_rgba = src_frame.rgba;
 
         motion::update(vms.gm, src_gray, vms.scan_region);
-
         update_out_position(state);
+
         out_rect = get_crop_rect(vms.out_position, out.width, out.height, vms.out_limit_region);
         img::copy(img::sub_view(src_rgba, out_rect), out);
+        img::scale_down(out, state.preview_dst);
     }
 
     
     static void process_play_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_src_frame };
-        vid::FrameList dst_frames = { state.display_preview_frame };
+        vid::FrameList dst_frames = {};
 
         auto& src_video = state.vms.src_video;
         auto& dst_frame = state.out_frame;
 
         auto const proc = [&](auto const& fr_src, auto const& v_out)
         {
-            process_frame(state, fr_src, v_out);
+            process_frame(state, fr_src, v_out);            
         };
 
         auto const cond = [&](){ return state.play_status == VPS::Play; };        
@@ -384,7 +422,7 @@ namespace internal
     static void process_generate_video(DisplayState& state)
     {
         vid::FrameList src_frames = { state.display_src_frame };
-        vid::FrameList dst_frames = { state.display_preview_frame };
+        vid::FrameList dst_frames = { };
 
         auto& src_video = state.vms.src_video;
         auto& dst_video = state.dst_video;

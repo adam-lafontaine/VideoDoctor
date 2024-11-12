@@ -94,22 +94,23 @@ namespace video_display
         img::ImageView vfx_view;
 
         img::ImageView display_src_view;
-        img::ImageView display_vfx_view;
-        img::ImageView display_preview_view;
-
         ImTextureID display_src_texture;
+        vid::FrameRGBA display_src_frame;
+
+        img::ImageView display_vfx_view;
         ImTextureID display_vfx_texture;
+
+        img::ImageView display_preview_view;
         ImTextureID display_preview_texture;
         
         img::Buffer32 display_buffer32;
-        vid::FrameRGBA display_src_frame;
-        vid::FrameRGBA display_preview_frame;
 
         fs::path src_video_filepath;
         ImGui::FileBrowser fb_video;
 
         u32 out_width;
         u32 out_height;
+        img::SubView preview_dst;
 
         Vec2Du32 src_dims() { return { vms.src_video.frame_width, vms.src_video.frame_height }; }
         f32 src_fps() { return vms.src_video.fps; }
@@ -188,8 +189,8 @@ namespace video_display
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;
 
-        auto n32 = 2;
-        auto n_pixels32 = display_w * display_h * n32;        
+        auto n32 = 3;
+        auto n_pixels32 = display_w * display_h * n32;
 
         state.display_buffer32 = img::create_buffer32(n_pixels32, "buffer32");
         if (!state.display_buffer32.ok)
@@ -203,19 +204,14 @@ namespace video_display
 
         state.vfx_view = make_display_view();
         state.display_vfx_view = make_display_view();
+        state.display_preview_view = make_display_view();
 
         if (!vid::create_frame(state.display_src_frame, display_w, display_h))
         {
             return false;
         }
 
-        if (!vid::create_frame(state.display_preview_frame, display_w, display_h))
-        {
-            return false;
-        }
-
-        state.display_src_view = state.display_src_frame.view;
-        state.display_preview_view = state.display_preview_frame.view;
+        state.display_src_view = state.display_src_frame.view;        
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
