@@ -248,7 +248,9 @@ namespace internal
         }
 
         // portrait
-        if (!set_out_dimensions(state, h / 2, h))
+        h = w / 2;
+        w = h * 9 / 16;
+        if (!set_out_dimensions(state, w, h))
         {
             assert("*** set_out_dimensions ***" && false);
             return false;
@@ -393,7 +395,8 @@ namespace internal
 
         out_rect = get_crop_rect(vms.out_position, out.width, out.height, vms.out_limit_region);
         img::copy(img::sub_view(src_rgba, out_rect), out);
-        img::scale_down(out, state.preview_dst);
+        //img::scale_down(out, state.preview_dst);
+        img::resize(out, state.preview_dst);
     }
 
     

@@ -3,6 +3,9 @@
 #include "image.hpp"
 #include "../util/numeric.hpp"
 
+#define IMAGE_RESIZE
+#include "../stb_image/stb_image_options.hpp"
+
 namespace num = numeric;
 
 
@@ -537,6 +540,68 @@ namespace image
         assert(scale > 1);
 
         matrix_scale_up(src, dst, scale);
+    }
+
+
+    void resize(ImageView const& src, ImageView const& dst)
+    {        
+        assert(src.width);
+		assert(src.height);
+		assert(src.matrix_data_);
+		assert(dst.width);
+		assert(dst.height);
+        assert(dst.matrix_data_);
+
+		int channels = 4;
+        auto layout = stbir_pixel_layout::STBIR_RGBA_NO_AW; // alpha channel doesn't matter
+
+		int width_src = (int)(src.width);
+		int height_src = (int)(src.height);
+		int stride_bytes_src = width_src * channels;
+        u8* data_src = (u8*)src.matrix_data_;
+
+		int width_dst = (int)(dst.width);
+		int height_dst = (int)(dst.height);
+		int stride_bytes_dst = width_dst * channels;
+        u8* data_dst = (u8*)dst.matrix_data_;
+
+        auto data = stbir_resize_uint8_linear(
+			data_src, width_src, height_src, stride_bytes_src,
+			data_dst, width_dst, height_dst, stride_bytes_dst,
+			layout);
+
+		assert(data && " *** stbir_resize_uint8_linear() failed *** ");
+    }
+
+
+    void resize(ImageView const& src, SubView const& dst)
+    {        
+        assert(src.width);
+		assert(src.height);
+		assert(src.matrix_data_);
+		assert(dst.width);
+		assert(dst.height);
+        assert(dst.matrix_data_);
+
+		int channels = 4;
+        auto layout = stbir_pixel_layout::STBIR_RGBA_NO_AW; // alpha channel doesn't matter
+
+		int width_src = (int)(src.width);
+		int height_src = (int)(src.height);
+		int stride_bytes_src = width_src * channels;
+        u8* data_src = (u8*)src.matrix_data_;
+
+		int width_dst = (int)(dst.width);
+		int height_dst = (int)(dst.height);
+		int stride_bytes_dst = (int)(dst.matrix_width) * channels;
+        u8* data_dst = (u8*)row_begin(dst, 0);
+
+        auto data = stbir_resize_uint8_linear(
+			data_src, width_src, height_src, stride_bytes_src,
+			data_dst, width_dst, height_dst, stride_bytes_dst,
+			layout);
+
+		assert(data && " *** stbir_resize_uint8_linear() failed *** ");
     }
 }
 

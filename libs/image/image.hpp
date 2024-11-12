@@ -382,6 +382,10 @@ namespace image
     void scale_up(GrayView const& src, GrayView const& dst);
 
     void scale_up(GraySubView const& src, GraySubView const& dst);
+
+    void resize(ImageView const& src, ImageView const& dst);
+
+    void resize(ImageView const& src, SubView const& dst);
 }
 
 
