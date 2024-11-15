@@ -49,19 +49,14 @@ namespace video
         u32 frame_width = 0;
         u32 frame_height = 0;
     };
-
-
-    VideoFrame get_frame(VideoReader const& video);
-
-    VideoFrame get_frame(VideoWriter const& writer);
-
-
-    using FrameList = std::initializer_list<FrameRGBA>;
+    
     
     template <class T>
     using fn = std::function<T>;
 
     using fn_frame_to_rgba = fn<void(VideoFrame, img::ImageView const&)>;
+
+    using fn_frame = fn<void(VideoFrame)>;
     using fn_bool = fn<bool()>;
 
 
@@ -76,11 +71,9 @@ namespace video
 
     void close_video(VideoReader& video);
 
-    void play_video(VideoReader const& video, FrameList const& frames_out);
+    void process_video(VideoReader const& src, fn_frame const& cb);
 
-    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
-
-    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
+    bool process_video(VideoReader const& src, fn_frame const& cb, fn_bool const& proc_cond);
     
     
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height);
@@ -89,9 +82,9 @@ namespace video
     
     void save_and_close_video(VideoWriter& video);
     
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb);
 
-    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, fn_bool const& proc_cond);
     
 }
 
@@ -106,6 +99,9 @@ namespace video
 
 namespace video
 {
+    using FrameList = std::initializer_list<FrameRGBA>;
+
+
     // Deprecated
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out);
 
@@ -114,4 +110,21 @@ namespace video
 
     // Deprecated
     bool next_frame(VideoReader const& video, FrameList const& frames_out);
+
+    
+    // Deprecated
+    void play_video(VideoReader const& video, FrameList const& frames_out);
+
+    // Deprecated
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+
+    // Deprecated
+    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
+
+    // Deprecated
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
+
+    // Deprecated
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
+    
 }

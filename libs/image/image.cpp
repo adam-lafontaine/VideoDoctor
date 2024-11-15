@@ -3,6 +3,9 @@
 #include "image.hpp"
 #include "../util/numeric.hpp"
 
+#define IMAGE_RESIZE
+#include "../stb_image/stb_image_options.hpp"
+
 namespace num = numeric;
 
 
@@ -312,16 +315,9 @@ namespace image
 
 namespace image
 {
-    void scale_down(ImageView const& src, ImageView const& dst)
+    /*template <class SRC, class DST>
+    static void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
     {
-        auto scale = src.width / dst.width;
-
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(src.width == scale * dst.width);
-        assert(src.height == scale * dst.height);
-        assert(scale > 1);
-        
         f32 const i_scale = 1.0f / (scale * scale);
 
         f32 red = 0.0f;
@@ -394,6 +390,34 @@ namespace image
                 rd[xd] = (u8)gray;
             }
         }
+    }
+
+
+    void scale_down(ImageView const& src, ImageView const& dst)
+    {
+        auto scale = src.width / dst.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        scale_down_rgba(src, dst, scale);
+    }
+
+
+    void scale_down(ImageView const& src, SubView const& dst)
+    {
+        auto scale = src.width / dst.width;
+
+        assert(src.matrix_data_);
+        assert(dst.matrix_data_);
+        assert(src.width == scale * dst.width);
+        assert(src.height == scale * dst.height);
+        assert(scale > 1);
+        
+        scale_down_rgba(src, dst, scale);
     }
 
 
@@ -516,6 +540,99 @@ namespace image
         assert(scale > 1);
 
         matrix_scale_up(src, dst, scale);
+    }*/
+
+
+    void resize(ImageView const& src, ImageView const& dst)
+    {        
+        assert(src.width);
+		assert(src.height);
+		assert(src.matrix_data_);
+		assert(dst.width);
+		assert(dst.height);
+        assert(dst.matrix_data_);
+
+		int channels = 4;
+        auto layout = stbir_pixel_layout::STBIR_RGBA_NO_AW; // alpha channel doesn't matter
+
+		int width_src = (int)(src.width);
+		int height_src = (int)(src.height);
+		int stride_bytes_src = width_src * channels;
+        u8* data_src = (u8*)src.matrix_data_;
+
+		int width_dst = (int)(dst.width);
+		int height_dst = (int)(dst.height);
+		int stride_bytes_dst = width_dst * channels;
+        u8* data_dst = (u8*)dst.matrix_data_;
+
+        auto data = stbir_resize_uint8_linear(
+			data_src, width_src, height_src, stride_bytes_src,
+			data_dst, width_dst, height_dst, stride_bytes_dst,
+			layout);
+
+		assert(data && " *** stbir_resize_uint8_linear() failed *** ");
+    }
+
+
+    void resize(ImageView const& src, SubView const& dst)
+    {        
+        assert(src.width);
+		assert(src.height);
+		assert(src.matrix_data_);
+		assert(dst.width);
+		assert(dst.height);
+        assert(dst.matrix_data_);
+
+		int channels = 4;
+        auto layout = stbir_pixel_layout::STBIR_RGBA_NO_AW; // alpha channel doesn't matter
+
+		int width_src = (int)(src.width);
+		int height_src = (int)(src.height);
+		int stride_bytes_src = width_src * channels;
+        u8* data_src = (u8*)src.matrix_data_;
+
+		int width_dst = (int)(dst.width);
+		int height_dst = (int)(dst.height);
+		int stride_bytes_dst = (int)(dst.matrix_width) * channels;
+        u8* data_dst = (u8*)row_begin(dst, 0);
+
+        auto data = stbir_resize_uint8_linear(
+			data_src, width_src, height_src, stride_bytes_src,
+			data_dst, width_dst, height_dst, stride_bytes_dst,
+			layout);
+
+		assert(data && " *** stbir_resize_uint8_linear() failed *** ");
+    }
+
+
+    void resize(GrayView const& src, GrayView const& dst)
+    {
+        assert(src.width);
+		assert(src.height);
+		assert(src.matrix_data_);
+		assert(dst.width);
+		assert(dst.height);
+        assert(dst.matrix_data_);
+
+        int channels = 1;
+        auto layout = stbir_pixel_layout::STBIR_1CHANNEL;
+
+		int width_src = (int)(src.width);
+		int height_src = (int)(src.height);
+		int stride_bytes_src = width_src * channels;
+        u8* data_src = (u8*)src.matrix_data_;
+
+		int width_dst = (int)(dst.width);
+		int height_dst = (int)(dst.height);
+		int stride_bytes_dst = width_dst * channels;
+        u8* data_dst = (u8*)dst.matrix_data_;
+
+        auto data = stbir_resize_uint8_linear(
+			data_src, width_src, height_src, stride_bytes_src,
+			data_dst, width_dst, height_dst, stride_bytes_dst,
+			layout);
+
+		assert(data && " *** stbir_resize_uint8_linear() failed *** ");
     }
 }
 
@@ -636,11 +753,11 @@ namespace image
 {
     static constexpr f32 GRAD_X_5X5[25] = 
     {
-          0.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+          0.0f,   0.0f, 0.0f,  0.0f,  0.0f,
         -0.08f, -0.12f, 0.0f, 0.12f, 0.08f
 		-0.24f, -0.36f, 0.0f, 0.36f, 0.24f
 		-0.08f, -0.12f, 0.0f, 0.12f, 0.08f,
-          0.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+          0.0f,   0.0f, 0.0f,  0.0f,  0.0f,
     };
 
 
@@ -652,37 +769,89 @@ namespace image
 		0.0f,  0.12f,  0.36f,  0.12f, 0.0f,
 		0.0f,  0.08f,  0.24f,  0.08f, 0.0f,
     };
-    
 
-	static inline f32 gradient_at_xy_f32(GraySubView const& view, u32 x, u32 y)
+
+    static void gradients_5x5(GraySubView const& src, GraySubView const& dst)
     {
-		constexpr i32 k_width = 5;
-		constexpr i32 k_height = 5;
+        auto kx0 = (f32*)GRAD_X_5X5;
+        auto kx1 = kx0 + 5;
+        auto kx2 = kx1 + 5;
+        auto kx3 = kx2 + 5;
+        auto kx4 = kx3 + 5;
 
-        auto kernel_x = GRAD_X_5X5;
-        auto kernel_y = GRAD_Y_5X5;
+        auto ky0 = (f32*)GRAD_Y_5X5;
+        auto ky1 = ky0 + 5;
+        auto ky2 = ky1 + 5;
+        auto ky3 = ky2 + 5;
+        auto ky4 = ky3 + 5;
 
-        f32 grad_x = 0.0f;
-        f32 grad_y = 0.0f;
-        u32 w = 0;
+        u8* src_rows[5] = { 0 };
 
-        i32 rx = (i32)x - (k_width / 2);
-        i32 ry = (i32)y - (k_height / 2);
-
-        for (i32 v = 0; v < k_height; ++v)
+        auto const set_src_rows = [&](u32 y)
         {
-            auto s = row_begin(view, ry + v);
-            for (i32 u = 0; u < k_width; ++u)
-            {
-                auto p = s[rx + u];
+            src_rows[0] = row_begin(src, (i32)y - 2) - 2;
+            src_rows[1] = row_begin(src, (i32)y - 1) - 2;
+            src_rows[2] = row_begin(src, (i32)y) - 2;
+            src_rows[3] = row_begin(src, (i32)y + 1) - 2;
+            src_rows[4] = row_begin(src, (i32)y + 2) - 2;
+        };
 
-                grad_x += p * kernel_x[w];
-                grad_y += p * kernel_y[w];
-                ++w;
+        auto const grad = [&](u32 x)
+        {
+            auto s0 = src_rows[0] + x;
+            auto s1 = src_rows[1] + x;
+            auto s2 = src_rows[2] + x;
+            auto s3 = src_rows[3] + x;
+            auto s4 = src_rows[4] + x;
+
+            f32 gx0 = 0.0f;
+            f32 gx1 = 0.0f;
+            f32 gx2 = 0.0f;
+            f32 gx3 = 0.0f;
+            f32 gx4 = 0.0f;
+
+            f32 gy0 = 0.0f;
+            f32 gy1 = 0.0f;
+            f32 gy2 = 0.0f;
+            f32 gy3 = 0.0f;
+            f32 gy4 = 0.0f;
+
+            for (u32 i = 0; i < 5; i++)
+            {
+                gx0 += s0[i] * kx0[i];
+                gy0 += s0[i] * ky0[i];
+
+                gx1 += s1[i] * kx1[i];
+                gy1 += s1[i] * ky1[i];
+
+                gx2 += s2[i] * kx2[i];
+                gy2 += s2[i] * ky2[i];
+
+                gx3 += s3[i] * kx3[i];
+                gy3 += s3[i] * ky3[i];
+
+                gx4 += s4[i] * kx4[i];
+                gy4 += s4[i] * ky4[i];
+            }
+
+            auto gx = gx0 + gx1 + gx2 + gx3 + gx4;
+            auto gy = gy0 + gy1 + gy2 + gy3 + gy4;
+
+            return (u8)num::q_hypot(gx, gy);
+        };
+
+        auto w = dst.width;
+        auto h = dst.height;
+
+        for (u32 y = 0; y < h; y++)
+        {
+            set_src_rows(y);
+            auto d = row_begin(dst, y);
+            for (u32 x = 0; x < w; x++)
+            {
+                d[x] = grad(x);
             }
         }
-
-        return num::q_hypot(grad_x, grad_y);
     }
 }
 
@@ -710,17 +879,7 @@ namespace image
         auto sub_src = sub_view(src, r);
         auto sub_dst = sub_view(dst, r);
 
-        auto w = sub_dst.width;
-        auto h = sub_dst.height;
-
-        for (u32 y = 0; y < h; y++)
-        {
-            auto d = row_begin(sub_dst, y);
-            for (u32 x = 0; x < w; x++)
-            {
-                d[x] = (u8)gradient_at_xy_f32(sub_src, x, y);
-            }
-        }
+        gradients_5x5(sub_src, sub_dst);
 
         /*auto top = make_rect(0, 0, dst.width, kd);
         auto bottom = make_rect(0, r.y_end, dst.width, kd);
@@ -732,6 +891,7 @@ namespace image
         fill(sub_view(dst, left), 0);
         fill(sub_view(dst, right), 0);*/        
     }
+    
 }
 
 

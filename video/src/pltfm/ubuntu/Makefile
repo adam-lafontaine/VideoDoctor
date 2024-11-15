@@ -12,7 +12,7 @@ GPP += -mavx
 NO_FLAGS := 
 SDL2   := `sdl2-config --cflags --libs`
 OPENGL := -lGL -ldl
-FFMPEG := -lavformat -lavcodec -lavutil -lswscale 
+FFMPEG := -lavformat -lavcodec -lavutil -lswscale
 #OPENCV := `pkg-config --cflags --libs opencv4`
 
 ALL_LFLAGS := $(SDL2) $(OPENGL) $(FFMPEG) -lpthread
@@ -80,6 +80,20 @@ memory_buffer_h += $(alloc_type_h)
 #***********
 
 
+#*** stb_image ***
+
+stb_image  := $(libs)/stb_image
+
+#stb_image_h        := $(stb_image)/stb_image.h
+stb_image_resize_h := $(stb_image)/stb_image_resize2.h
+
+stb_image_options_h := $(stb_image)/stb_image_options.hpp
+#stb_image_options_h += $(stb_image_h)
+stb_image_options_h += $(stb_image_resize_h)
+
+#**************
+
+
 #*** qsprintf ***
 
 qsprintf   := $(libs)/qsprintf
@@ -116,6 +130,7 @@ image_h += $(span_h)
 image_c := $(image)/image.cpp
 image_c += $(image_h)
 image_c += $(numeric_h)
+image_c += $(stb_image_options_h)
 
 #*************
 

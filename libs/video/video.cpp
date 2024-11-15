@@ -422,73 +422,6 @@ namespace video
         return done;
     }
 
-
-    /*template <class FN> // std::function<void()>
-    static void for_each_frame(VideoReader const& src, VideoWriter const& dst, FN const& on_read)
-    {
-        auto src_ctx = get_context(src);
-        auto dst_ctx = get_context(dst);
-
-        auto packet = src_ctx.packet;
-        auto decoder = src_ctx.codec_ctx;
-        auto frame = src_ctx.frame_av;
-        auto stream = src_ctx.stream;
-
-        while (av_read_frame(src_ctx.format_ctx, packet) >= 0) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-                        on_read();
-                    }
-                }
-            }
-            av_packet_unref(packet);
-        }
-    }
-
-
-    template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&, VideoWriterContext const&)>, std::function<bool()>
-    static bool for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func, COND_FN const& cond)
-    {
-        auto packet = src_ctx.packet;
-        auto decoder = src_ctx.codec_ctx;
-        auto frame = src_ctx.frame_av;
-        auto stream = src_ctx.stream;
-
-        bool done = false;
-        auto const read = [&]()
-        { 
-            done = av_read_frame(src_ctx.format_ctx, packet) < 0;
-            return !done;
-        };
-
-        while (cond() && read()) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-                        func(src_ctx, dst_ctx);                        
-                    }
-                }
-            }
-            av_packet_unref(packet);
-        }
-
-        return done;
-    }*/
 }
 
 
@@ -672,70 +605,24 @@ namespace video
 
         video.video_handle = 0;
     }
-  
-    
-    void play_video(VideoReader const& video, FrameList const& frames_out)
-    {
-        auto ctx = get_context(video);
-
-        auto const copy = [&]()
-        {
-            for (auto& out : frames_out)
-            {
-                convert_frame(ctx.frame_av, av_frame(out));
-            }
-        };
-
-        for_each_frame(video, copy);
-    }
 
     
-    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    void process_video(VideoReader const& src, fn_frame const& cb)
     {
-        auto dst_view = dst.view;
-
-        auto src_ctx = get_context(src);
-        auto dst_av = av_frame(dst);
-
         auto on_read = [&]()
         {
-            cb(get_frame(src), dst_view);
-
-            for (auto& out : src_out)
-            {
-                convert_frame(src_ctx.frame_av, av_frame(out));
-            }
-            
-            for (auto& out : dst_out)
-            {
-                convert_frame(dst_av, av_frame(out));
-            }
+            cb(get_frame(src));
         };
 
         for_each_frame(src, on_read);
     }
 
 
-    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    bool process_video(VideoReader const& src, fn_frame const& cb, fn_bool const& proc_cond)
     {
-        auto dst_view = dst.view;
-
-        auto src_ctx = get_context(src);
-        auto dst_av = av_frame(dst);
-
         auto on_read = [&]()
         {
-            cb(get_frame(src), dst_view);
-
-            for (auto& out : src_out)
-            {
-                convert_frame(src_ctx.frame_av, av_frame(out));
-            }
-            
-            for (auto& out : dst_out)
-            {
-                convert_frame(dst_av, av_frame(out));
-            }
+            cb(get_frame(src));
         };
 
         return for_each_frame(src, on_read, proc_cond);
@@ -915,45 +802,12 @@ namespace video
     }
     
     
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb)
     {
         auto src_ctx = get_context(src);
         auto dst_ctx = get_context(dst);
 
         auto src_av = src_ctx.frame_av;
-        auto src_rgba = av_frame(src_ctx.frame_rgba);
-        auto dst_av = dst_ctx.frame_av;
-        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
-
-        auto const on_read = [&]()
-        {
-            cb(get_frame(src), get_frame(dst).rgba);
-            convert_frame(dst_rgba, dst_av);
-            encode_frame(dst_ctx, src_av->pts);         
-
-            for (auto& out : src_out)
-            {
-                convert_frame(src_ctx.frame_av, av_frame(out));
-            }
-
-            auto dst_av = av_frame(dst_ctx.frame_rgba);
-            for (auto& out : dst_out)
-            {
-                convert_frame(dst_av, av_frame(out));
-            }
-        };
-
-        for_each_frame(src, on_read);
-    }
-    
-    
-    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
-    {
-        auto src_ctx = get_context(src);
-        auto dst_ctx = get_context(dst);
-
-        auto src_av = src_ctx.frame_av;
-        auto src_rgba = av_frame(src_ctx.frame_rgba);
         auto dst_av = dst_ctx.frame_av;
         auto dst_rgba = av_frame(dst_ctx.frame_rgba);
 
@@ -962,25 +816,31 @@ namespace video
             cb(get_frame(src), get_frame(dst).rgba);
             convert_frame(dst_rgba, dst_av);
             encode_frame(dst_ctx, src_av->pts);
-            
-            for (auto& out : src_out)
-            {
-                convert_frame(src_ctx.frame_av, av_frame(out));
-            }
+        };
 
-            auto dst_av = av_frame(dst_ctx.frame_rgba);
-            for (auto& out : dst_out)
-            {
-                convert_frame(dst_av, av_frame(out));
-            }
+        for_each_frame(src, on_read);
+    }
+    
+    
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, fn_bool const& proc_cond)
+    {
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
+
+        auto src_av = src_ctx.frame_av;
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
+
+        auto const on_read = [&]()
+        {
+            cb(get_frame(src), get_frame(dst).rgba);
+            convert_frame(dst_rgba, dst_av);
+            encode_frame(dst_ctx, src_av->pts);
         };
 
         return for_each_frame(src, on_read, proc_cond);
     }
 
-
-    
-    
 }
 
 
@@ -1050,6 +910,138 @@ namespace video
         av_packet_unref(ctx.packet);
 
         return true;
+    }
+  
+    
+    void play_video(VideoReader const& video, FrameList const& frames_out)
+    {
+        auto ctx = get_context(video);
+
+        auto const copy = [&]()
+        {
+            for (auto& out : frames_out)
+            {
+                convert_frame(ctx.frame_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(video, copy);
+    }
+
+    
+    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    {
+        auto dst_view = dst.view;
+
+        auto src_ctx = get_context(src);
+        auto dst_av = av_frame(dst);
+
+        auto on_read = [&]()
+        {
+            cb(get_frame(src), dst_view);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+            
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(src, on_read);
+    }
+
+
+    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    {
+        auto dst_view = dst.view;
+
+        auto src_ctx = get_context(src);
+        auto dst_av = av_frame(dst);
+
+        auto on_read = [&]()
+        {
+            cb(get_frame(src), dst_view);
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+            
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        return for_each_frame(src, on_read, proc_cond);
+    }
+
+
+    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out)
+    {
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
+
+        auto src_av = src_ctx.frame_av;
+        auto src_rgba = av_frame(src_ctx.frame_rgba);
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
+
+        auto const on_read = [&]()
+        {
+            cb(get_frame(src), get_frame(dst).rgba);
+            convert_frame(dst_rgba, dst_av);
+            encode_frame(dst_ctx, src_av->pts);         
+
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+
+            auto dst_av = av_frame(dst_ctx.frame_rgba);
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        for_each_frame(src, on_read);
+    }
+    
+    
+    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond)
+    {
+        auto src_ctx = get_context(src);
+        auto dst_ctx = get_context(dst);
+
+        auto src_av = src_ctx.frame_av;
+        auto src_rgba = av_frame(src_ctx.frame_rgba);
+        auto dst_av = dst_ctx.frame_av;
+        auto dst_rgba = av_frame(dst_ctx.frame_rgba);
+
+        auto const on_read = [&]()
+        {
+            cb(get_frame(src), get_frame(dst).rgba);
+            convert_frame(dst_rgba, dst_av);
+            encode_frame(dst_ctx, src_av->pts);
+            
+            for (auto& out : src_out)
+            {
+                convert_frame(src_ctx.frame_av, av_frame(out));
+            }
+
+            auto dst_av = av_frame(dst_ctx.frame_rgba);
+            for (auto& out : dst_out)
+            {
+                convert_frame(dst_av, av_frame(out));
+            }
+        };
+
+        return for_each_frame(src, on_read, proc_cond);
     }
 
 }
