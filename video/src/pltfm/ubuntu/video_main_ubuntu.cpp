@@ -159,7 +159,7 @@ static bool main_init()
 {
     ui_state.window_title = "Motion Detect";
     ui_state.window_width = 1350;
-    ui_state.window_height = 900;
+    ui_state.window_height = 950;
 
     if (!ui::init(ui_state))
     {

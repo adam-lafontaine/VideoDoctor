@@ -795,8 +795,6 @@ namespace internal
             dst_region.y_begin = (u32)y_min;
             dst_region.y_end = (u32)y_max;
         }
-
-        
     }
 
 
@@ -804,14 +802,17 @@ namespace internal
     {
         ImGui::SeparatorText("Out Video");
 
-        struct item
+        char buffer[6] = { 0 };
+        auto size_str = span::make_view(5, buffer);
+
+        auto write_size = [](auto& str, u32 val)
         {
-            cstr label;
-            u32 value;
+            span::zero_string(str);
+            span::sprintf(str, "%u", val);
         };
 
-        static item sizes[] = { {"360", 360}, {"640", 640}, {"720", 720}, {"1080", 1080}, {"1280", 1280}, {"1920", 1920}, {"2160", 2160}, {"3840", 3840} };
-
+        constexpr auto N = IM_ARRAYSIZE(OUT_SIZES);
+        
         static int width_id = 0;
         static int height_id = 0;
         static u32 src_width = 0;
@@ -831,9 +832,9 @@ namespace internal
             src_width = dims.x;
             src_height = dims.y;
 
-            for (int i = 0; i < IM_ARRAYSIZE(sizes); i++)
+            for (int i = 0; i < N; i++)
             {
-                auto size = sizes[i].value;
+                auto size = OUT_SIZES[i];
                 if (state.out_width == size)
                 {
                     width_id = i;
@@ -850,17 +851,20 @@ namespace internal
 
         if (combo_disabled) { ImGui::BeginDisabled(); }
 
-        if (ImGui::BeginCombo("Width##WidthCombo", sizes[width_id].label))
+        write_size(size_str, OUT_SIZES[width_id]);
+
+        if (ImGui::BeginCombo("Width##WidthCombo", span::to_cstr(size_str)))
         {
-            for (int i = 0; i < IM_ARRAYSIZE(sizes); i++)
+            for (int i = 0; i < N; i++)
             {
-                if (sizes[i].value > dims.x)
+                if (OUT_SIZES[i] > dims.x)
                 {
                     continue;
                 }
 
                 auto is_selected = (width_id == i);
-                if (ImGui::Selectable(sizes[i].label, is_selected))
+                write_size(size_str, OUT_SIZES[i]);
+                if (ImGui::Selectable(span::to_cstr(size_str), is_selected))
                 {
                     width_id = i;
                 }
@@ -874,17 +878,20 @@ namespace internal
             ImGui::EndCombo();
         }
 
-        if (ImGui::BeginCombo("Height##HeightCombo", sizes[height_id].label))
+        write_size(size_str, OUT_SIZES[height_id]);
+
+        if (ImGui::BeginCombo("Height##HeightCombo", span::to_cstr(size_str)))
         {
-            for (int i = 0; i < IM_ARRAYSIZE(sizes); i++)
+            for (int i = 0; i < N; i++)
             {
-                if (sizes[i].value > dims.y)
+                if (OUT_SIZES[i] > dims.y)
                 {
                     continue;
                 }
 
                 auto is_selected = (height_id == i);
-                if (ImGui::Selectable(sizes[i].label, is_selected))
+                write_size(size_str, OUT_SIZES[i]);
+                if (ImGui::Selectable(span::to_cstr(size_str), is_selected))
                 {
                     height_id = i;
                 }
@@ -900,8 +907,8 @@ namespace internal
 
         if (ImGui::Button("Set"))
         {
-            u32 w = sizes[width_id].value;
-            u32 h = sizes[height_id].value;
+            u32 w = OUT_SIZES[width_id];
+            u32 h = OUT_SIZES[height_id];
 
             auto& vms = state.vms;
 

@@ -35,6 +35,17 @@ namespace video_display
     constexpr u32 PROCESS_IMAGE_WIDTH = DISPLAY_FRAME_WIDTH / 2;
     constexpr u32 PROCESS_IMAGE_HEIGHT = DISPLAY_FRAME_HEIGHT / 2;
 
+    constexpr u32 OUT_SIZES[] = {
+        DISPLAY_FRAME_HEIGHT,
+        DISPLAY_FRAME_WIDTH,
+        HEIGHT_720P,
+        HEIGHT_1080P,
+        WIDTH_720P,
+        WIDTH_1080P,
+        HEIGHT_4K,
+        WIDTH_4K
+    };
+
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_TEMP_PATH = "./vdtemp.mp4";
     constexpr auto OUT_VIDEO_DIR = "/home/adam/Repos/VideoDoctor/video/build/";
