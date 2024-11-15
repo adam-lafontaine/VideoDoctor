@@ -188,6 +188,11 @@ namespace internal
     
     static bool set_out_dimensions(DisplayState& state, u32 width, u32 height)
     {
+        auto dims = state.src_dims();
+
+        width = num::clamp(width, DISPLAY_FRAME_HEIGHT, dims.x);
+        height = num::clamp(height, DISPLAY_FRAME_HEIGHT, dims.y);        
+        
         img::destroy_image(state.out_image);
 
         if (!img::create_image(state.out_image, width, height, "out_image"))
@@ -227,54 +232,6 @@ namespace internal
     }
     
     
-    static bool load_video(DisplayState& state)
-    {
-        reset_video_status(state);
-
-        auto& vms = state.vms;
-
-        if (!load_src_video(vms, state.src_video_filepath))
-        {
-            return false;
-        }
-
-        auto w = vms.src_video.frame_width;
-        auto h = vms.src_video.frame_height;
-
-        assert(w && h && "*** No video dimensions ***");
-
-        if (!init_vms(state.vms))
-        {
-            assert("*** init_vms ***" && false);
-            return false;
-        }
-
-        // portrait
-        h = w / 2;
-        w = h * 9 / 16;
-        if (!set_out_dimensions(state, w, h))
-        {
-            assert("*** set_out_dimensions ***" && false);
-            return false;
-        }
-
-        return true;
-    }
-
-
-    static bool reload_video(DisplayState& state)
-    {
-        reset_video_status(state);
-
-        if (!load_src_video(state.vms, state.src_video_filepath))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-
     static Rect2Du32 get_crop_rect(Point2Du32 pt, u32 crop_w, u32 crop_h, Rect2Du32 bounds)
     {
         auto w = bounds.x_end - bounds.x_begin;
@@ -298,6 +255,55 @@ namespace internal
         r.y_end   = r.y_begin + crop_h;
 
         return r;
+    }
+    
+    
+    static bool load_video(DisplayState& state)
+    {
+        reset_video_status(state);
+
+        auto& vms = state.vms;
+
+        if (!load_src_video(vms, state.src_video_filepath))
+        {
+            return false;
+        }
+
+        auto dims = state.src_dims();
+
+        assert(dims.x && dims.y && "*** No video dimensions ***");
+
+        if (!init_vms(state.vms))
+        {
+            assert("*** init_vms ***" && false);
+            return false;
+        }
+
+        auto w = WIDTH_720P;
+        auto h = HEIGHT_720P;
+
+        if (!set_out_dimensions(state, w, h))
+        {
+            assert("*** set_out_dimensions load_video ***" && false);
+            return false;
+        }
+
+        state.vms.out_region = get_crop_rect(vms.out_position, w, h, vms.out_limit_region);
+
+        return true;
+    }
+
+
+    static bool reload_video(DisplayState& state)
+    {
+        reset_video_status(state);
+
+        if (!load_src_video(state.vms, state.src_video_filepath))
+        {
+            return false;
+        }
+
+        return true;
     }
 
 
@@ -393,11 +399,11 @@ namespace internal
         auto src_rgba = src_frame.rgba;
         auto out = state.out_view();
 
-        motion::update(vms.gm, src_gray, vms.scan_region);
-        update_out_position(state);
-
         auto w = state.out_width;
         auto h = state.out_height;
+
+        motion::update(vms.gm, src_gray, vms.scan_region);
+        update_out_position(state);
 
         out_rect = get_crop_rect(vms.out_position, w, h, vms.out_limit_region);
         img::copy(img::sub_view(src_rgba, out_rect), out);
@@ -407,29 +413,16 @@ namespace internal
 
     static void process_frame_write(DisplayState& state, vid::VideoFrame src_frame, img::ImageView const& dst)
     {
-        auto& vms = state.vms;
-        auto& out_rect = vms.out_region;
-        
-        auto src_gray = src_frame.gray;
-        auto src_rgba = src_frame.rgba;
-        auto out = state.out_view();
+        process_frame_read(state, src_frame);
 
-        motion::update(vms.gm, src_gray, vms.scan_region);
-        update_out_position(state);
-
-        auto w = state.out_width;
-        auto h = state.out_height;
-
-        out_rect = get_crop_rect(vms.out_position, w, h, vms.out_limit_region);
-        img::copy(img::sub_view(src_rgba, out_rect), out);
-        img::resize(out, state.preview_dst);
-
-        img::copy(out, dst);
+        img::copy(state.out_view(), dst);
     }
 
     
     static void process_play_video(DisplayState& state)
     {
+        img::fill(state.display_preview_view, img::to_pixel(0));
+
         auto& src_video = state.vms.src_video;
 
         auto const proc = [&](auto const& fr_src)
@@ -448,6 +441,8 @@ namespace internal
 
     static void process_generate_video(DisplayState& state)
     {
+        img::fill(state.display_preview_view, img::to_pixel(0));
+
         auto& src_video = state.vms.src_video;
         auto& dst_video = state.dst_video;
 
@@ -588,33 +583,6 @@ namespace internal
         ImGui::SameLine();
 
         ImGui::Checkbox("Show motion", &state.show_motion);
-
-        /*auto orientation_disabled = state.play_status == VideoPlayStatus::Generate;
-
-        if (orientation_disabled) { ImGui::BeginDisabled(); }
-
-        static int orientation = 0;
-        ImGui::RadioButton("Landscape", &orientation, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("Portrait", &orientation, 1);
-
-        if (orientation_disabled) { ImGui::BeginDisabled(); }
-
-        auto w = state.out_width;
-        auto h = state.out_height;
-
-        switch (orientation)
-        {
-        case 0:
-            state.out_width = num::max(w, h);
-            state.out_height = num::min(w, h);
-            break;
-        
-        default:
-            state.out_width = num::min(w, h);
-            state.out_height = num::max(w, h);
-            break;
-        }*/
 
         ImGui::Text("Sensitivity");
         ImGui::SliderFloat(
@@ -827,6 +795,121 @@ namespace internal
             dst_region.y_begin = (u32)y_min;
             dst_region.y_end = (u32)y_max;
         }
+
+        
+    }
+
+
+    void out_video_settings(DisplayState& state)
+    {
+        ImGui::SeparatorText("Out Video");
+
+        struct item
+        {
+            cstr label;
+            u32 value;
+        };
+
+        static item sizes[] = { {"360", 360}, {"640", 640}, {"720", 720}, {"1080", 1080}, {"1280", 1280}, {"1920", 1920}, {"2160", 2160}, {"3840", 3840} };
+
+        static int width_id = 0;
+        static int height_id = 0;
+        static u32 src_width = 0;
+        static u32 src_height = 0;
+        auto dims = state.src_dims();
+
+        if (!dims.x && !dims.y)
+        {
+            return;
+        }
+
+        // new video loaded
+        auto set_ui_dims = dims.x && dims.y && (src_width != dims.x || src_height != dims.y);
+
+        if (set_ui_dims)
+        {
+            src_width = dims.x;
+            src_height = dims.y;
+
+            for (int i = 0; i < IM_ARRAYSIZE(sizes); i++)
+            {
+                auto size = sizes[i].value;
+                if (state.out_width == size)
+                {
+                    width_id = i;
+                }
+
+                if (state.out_height == size)
+                {
+                    height_id = i;
+                }
+            }
+        }
+
+        auto combo_disabled = state.play_status != VideoPlayStatus::Pause;
+
+        if (combo_disabled) { ImGui::BeginDisabled(); }
+
+        if (ImGui::BeginCombo("Width##WidthCombo", sizes[width_id].label))
+        {
+            for (int i = 0; i < IM_ARRAYSIZE(sizes); i++)
+            {
+                if (sizes[i].value > dims.x)
+                {
+                    continue;
+                }
+
+                auto is_selected = (width_id == i);
+                if (ImGui::Selectable(sizes[i].label, is_selected))
+                {
+                    width_id = i;
+                }
+
+                if (is_selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        if (ImGui::BeginCombo("Height##HeightCombo", sizes[height_id].label))
+        {
+            for (int i = 0; i < IM_ARRAYSIZE(sizes); i++)
+            {
+                if (sizes[i].value > dims.y)
+                {
+                    continue;
+                }
+
+                auto is_selected = (height_id == i);
+                if (ImGui::Selectable(sizes[i].label, is_selected))
+                {
+                    height_id = i;
+                }
+
+                if (is_selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        if (ImGui::Button("Set"))
+        {
+            u32 w = sizes[width_id].value;
+            u32 h = sizes[height_id].value;
+
+            auto& vms = state.vms;
+
+            set_out_dimensions(state, w, h);
+            state.vms.out_region = get_crop_rect(vms.out_position, w, h, vms.out_limit_region);
+        }
+
+        if (combo_disabled) { ImGui::EndDisabled(); }
     }
 
 

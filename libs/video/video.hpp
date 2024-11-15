@@ -49,13 +49,6 @@ namespace video
         u32 frame_width = 0;
         u32 frame_height = 0;
     };
-
-
-    VideoFrame get_frame(VideoReader const& video);
-
-    VideoFrame get_frame(VideoWriter const& writer);
-
-
     
     
     template <class T>

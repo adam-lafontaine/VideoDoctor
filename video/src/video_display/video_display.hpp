@@ -23,6 +23,10 @@ namespace video_display
     constexpr u32 WIDTH_1080P = WIDTH_4K / 2;
     constexpr u32 HEIGHT_1080P = HEIGHT_4K / 2;
 
+    // 720p video
+    constexpr u32 WIDTH_720P = 1280;
+    constexpr u32 HEIGHT_720P = 720;
+
     // display/preview 
     constexpr u32 DISPLAY_FRAME_HEIGHT = 360;
     constexpr u32 DISPLAY_FRAME_WIDTH = DISPLAY_FRAME_HEIGHT * WIDTH_4K / HEIGHT_4K;
@@ -164,6 +168,8 @@ namespace internal
     void scan_region_settings(DisplayState& state);
 
     void display_region_settings(DisplayState& state);
+
+    void out_video_settings(DisplayState& state);
 
     void start_vfx(DisplayState& state);
 }
@@ -365,6 +371,7 @@ namespace video_display
         internal::motion_detection_settings(state);
         internal::scan_region_settings(state);
         internal::display_region_settings(state);
+        internal::out_video_settings(state);
 
         ImGui::End();
     }

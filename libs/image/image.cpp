@@ -315,7 +315,7 @@ namespace image
 
 namespace image
 {
-    template <class SRC, class DST>
+    /*template <class SRC, class DST>
     static void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
     {
         f32 const i_scale = 1.0f / (scale * scale);
@@ -540,7 +540,7 @@ namespace image
         assert(scale > 1);
 
         matrix_scale_up(src, dst, scale);
-    }
+    }*/
 
 
     void resize(ImageView const& src, ImageView const& dst)
@@ -595,6 +595,37 @@ namespace image
 		int height_dst = (int)(dst.height);
 		int stride_bytes_dst = (int)(dst.matrix_width) * channels;
         u8* data_dst = (u8*)row_begin(dst, 0);
+
+        auto data = stbir_resize_uint8_linear(
+			data_src, width_src, height_src, stride_bytes_src,
+			data_dst, width_dst, height_dst, stride_bytes_dst,
+			layout);
+
+		assert(data && " *** stbir_resize_uint8_linear() failed *** ");
+    }
+
+
+    void resize(GrayView const& src, GrayView const& dst)
+    {
+        assert(src.width);
+		assert(src.height);
+		assert(src.matrix_data_);
+		assert(dst.width);
+		assert(dst.height);
+        assert(dst.matrix_data_);
+
+        int channels = 1;
+        auto layout = stbir_pixel_layout::STBIR_1CHANNEL;
+
+		int width_src = (int)(src.width);
+		int height_src = (int)(src.height);
+		int stride_bytes_src = width_src * channels;
+        u8* data_src = (u8*)src.matrix_data_;
+
+		int width_dst = (int)(dst.width);
+		int height_dst = (int)(dst.height);
+		int stride_bytes_dst = width_dst * channels;
+        u8* data_dst = (u8*)dst.matrix_data_;
 
         auto data = stbir_resize_uint8_linear(
 			data_src, width_src, height_src, stride_bytes_src,
