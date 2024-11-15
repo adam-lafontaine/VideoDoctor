@@ -802,17 +802,14 @@ namespace internal
     {
         ImGui::SeparatorText("Out Video");
 
-        char buffer[6] = { 0 };
-        auto size_str = span::make_view(5, buffer);
-
-        auto write_size = [](auto& str, u32 val)
-        {
-            span::zero_string(str);
-            span::sprintf(str, "%u", val);
-        };
-
         constexpr auto N = IM_ARRAYSIZE(OUT_SIZES);
-        
+
+        char labels[N][6] = { 0 };
+        for (u32 i = 0; i < N; i++)
+        {
+            qsnprintf(labels[i], 6, "%u", OUT_SIZES[i]);
+        }
+
         static int width_id = 0;
         static int height_id = 0;
         static u32 src_width = 0;
@@ -851,9 +848,7 @@ namespace internal
 
         if (combo_disabled) { ImGui::BeginDisabled(); }
 
-        write_size(size_str, OUT_SIZES[width_id]);
-
-        if (ImGui::BeginCombo("Width##WidthCombo", span::to_cstr(size_str)))
+        if (ImGui::BeginCombo("Width##WidthCombo", labels[width_id]))
         {
             for (int i = 0; i < N; i++)
             {
@@ -863,8 +858,8 @@ namespace internal
                 }
 
                 auto is_selected = (width_id == i);
-                write_size(size_str, OUT_SIZES[i]);
-                if (ImGui::Selectable(span::to_cstr(size_str), is_selected))
+                
+                if (ImGui::Selectable(labels[i], is_selected))
                 {
                     width_id = i;
                 }
@@ -878,9 +873,7 @@ namespace internal
             ImGui::EndCombo();
         }
 
-        write_size(size_str, OUT_SIZES[height_id]);
-
-        if (ImGui::BeginCombo("Height##HeightCombo", span::to_cstr(size_str)))
+        if (ImGui::BeginCombo("Height##HeightCombo", labels[height_id]))
         {
             for (int i = 0; i < N; i++)
             {
@@ -890,8 +883,7 @@ namespace internal
                 }
 
                 auto is_selected = (height_id == i);
-                write_size(size_str, OUT_SIZES[i]);
-                if (ImGui::Selectable(span::to_cstr(size_str), is_selected))
+                if (ImGui::Selectable(labels[i]))
                 {
                     height_id = i;
                 }

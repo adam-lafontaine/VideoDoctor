@@ -422,73 +422,6 @@ namespace video
         return done;
     }
 
-
-    /*template <class FN> // std::function<void()>
-    static void for_each_frame(VideoReader const& src, VideoWriter const& dst, FN const& on_read)
-    {
-        auto src_ctx = get_context(src);
-        auto dst_ctx = get_context(dst);
-
-        auto packet = src_ctx.packet;
-        auto decoder = src_ctx.codec_ctx;
-        auto frame = src_ctx.frame_av;
-        auto stream = src_ctx.stream;
-
-        while (av_read_frame(src_ctx.format_ctx, packet) >= 0) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-                        on_read();
-                    }
-                }
-            }
-            av_packet_unref(packet);
-        }
-    }
-
-
-    template <class FRAME_FN, class COND_FN> //std::function<void(VideoReaderContext const&, VideoWriterContext const&)>, std::function<bool()>
-    static bool for_each_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx, FRAME_FN const& func, COND_FN const& cond)
-    {
-        auto packet = src_ctx.packet;
-        auto decoder = src_ctx.codec_ctx;
-        auto frame = src_ctx.frame_av;
-        auto stream = src_ctx.stream;
-
-        bool done = false;
-        auto const read = [&]()
-        { 
-            done = av_read_frame(src_ctx.format_ctx, packet) < 0;
-            return !done;
-        };
-
-        while (cond() && read()) 
-        {
-            if (packet->stream_index == stream->index) 
-            {
-                // Send packet to decoder
-                if (avcodec_send_packet(decoder, packet) == 0) 
-                {
-                    // Receive frame from decoder
-                    while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {
-                        convert_frame(src_ctx.frame_av, av_frame(src_ctx.frame_rgba));
-                        func(src_ctx, dst_ctx);                        
-                    }
-                }
-            }
-            av_packet_unref(packet);
-        }
-
-        return done;
-    }*/
 }
 
 
@@ -895,7 +828,6 @@ namespace video
         auto dst_ctx = get_context(dst);
 
         auto src_av = src_ctx.frame_av;
-        auto src_rgba = av_frame(src_ctx.frame_rgba);
         auto dst_av = dst_ctx.frame_av;
         auto dst_rgba = av_frame(dst_ctx.frame_rgba);
 
@@ -909,9 +841,6 @@ namespace video
         return for_each_frame(src, on_read, proc_cond);
     }
 
-
-    
-    
 }
 
 
