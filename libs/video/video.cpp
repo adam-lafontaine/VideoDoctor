@@ -18,8 +18,12 @@ namespace video
     {
     public:
         AVFormatContext* format_ctx;
-        AVCodecContext* codec_ctx;
-        AVStream* stream;
+
+        AVCodecContext* video_codec_ctx;
+        AVStream* video_stream;
+
+        AVCodecContext* audio_codec_ctx;
+        AVStream* audio_stream;
 
         AVFrame* frame_av;
         AVPacket* packet;
@@ -32,8 +36,8 @@ namespace video
     {
     public:
         AVFormatContext* format_ctx;
-        AVCodecContext* codec_ctx;
-        AVStream* stream;
+        AVCodecContext* video_codec_ctx;
+        AVStream* video_stream;
 
         AVFrame* frame_av;
 
@@ -151,60 +155,14 @@ namespace video
 
         return av_frame;
     }
-
-
-    static bool read_next_frame(VideoReaderContext const& ctx)
-    {
-        auto packet = ctx.packet;
-        auto decoder = ctx.codec_ctx;
-        auto frame = ctx.frame_av;
-        auto stream = ctx.stream;
-
-        for (;;)
-        {
-            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
-            {
-                //assert("*** av_read_frame ***" && false);
-                av_packet_unref(ctx.packet);
-                return false;
-            }
-
-            if (ctx.packet->stream_index != ctx.stream->index)
-            {
-                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
-                av_packet_unref(ctx.packet);
-                continue;
-            }
-
-            if(avcodec_send_packet(ctx.codec_ctx, ctx.packet) < 0)
-            {
-                assert("*** avcodec_send_packet ***" && false);
-                av_packet_unref(ctx.packet);
-                return false;
-            }
-
-            if (avcodec_receive_frame(ctx.codec_ctx, ctx.frame_av) < 0)
-            {
-                //assert("*** avcodec_receive_frame ***" && false);
-                av_packet_unref(ctx.packet);
-                continue;
-            }
-
-            break;
-        }
-
-        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
-
-        return true;
-    }
     
 
     static void encode_frame(VideoWriterContext const& ctx, i64 pts)
     {
-        auto encoder = ctx.codec_ctx;
+        auto encoder = ctx.video_codec_ctx;
         auto frame = ctx.frame_av;
         auto duration = ctx.packet_duration;
-        auto stream = ctx.stream;
+        auto stream = ctx.video_stream;
 
         // Set PTS (Presentation Time Stamp)
         frame->pts = pts;
@@ -243,9 +201,9 @@ namespace video
     
     static void flush_encoder(VideoWriterContext& ctx)
     {
-        auto encoder = ctx.codec_ctx;
+        auto encoder = ctx.video_codec_ctx;
         auto duration = ctx.packet_duration;
-        auto stream = ctx.stream;
+        auto stream = ctx.video_stream;
 
         AVPacket packet;
         av_init_packet(&packet);
@@ -253,7 +211,7 @@ namespace video
         packet.size = 0;
 
         // Flush the encoder
-        avcodec_send_frame(ctx.codec_ctx, nullptr);
+        avcodec_send_frame(ctx.video_codec_ctx, nullptr);
         while (avcodec_receive_packet(encoder, &packet) == 0) 
         {
             packet.stream_index = stream->index;
@@ -288,8 +246,8 @@ namespace video
 
     static void crop_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx)
     { 
-        auto decoder = src_ctx.codec_ctx;
-        auto encoder = dst_ctx.codec_ctx;
+        auto decoder = src_ctx.video_codec_ctx;
+        auto encoder = dst_ctx.video_codec_ctx;
         auto w = decoder->width;
         auto h = decoder->height;
         auto crop_w = encoder->width;
@@ -361,9 +319,9 @@ namespace video
     {
         auto ctx = get_context(src);
         auto packet = ctx.packet;
-        auto decoder = ctx.codec_ctx;
+        auto decoder = ctx.video_codec_ctx;
         auto frame = ctx.frame_av;
-        auto stream = ctx.stream;
+        auto stream = ctx.video_stream;
 
         while (av_read_frame(ctx.format_ctx, packet) >= 0) 
         {
@@ -390,9 +348,9 @@ namespace video
     {
         auto ctx = get_context(src);
         auto packet = ctx.packet;
-        auto decoder = ctx.codec_ctx;
+        auto decoder = ctx.video_codec_ctx;
         auto frame = ctx.frame_av;
-        auto stream = ctx.stream;
+        auto stream = ctx.video_stream;
 
         bool done = false;
         auto const read = [&]()
@@ -504,6 +462,7 @@ namespace video
             return false;
         }
 
+        ctx.video_stream = 0;
         int video_stream_index = -1;
         for (u32 i = 0; i < ctx.format_ctx->nb_streams; ++i) 
         {
@@ -520,34 +479,34 @@ namespace video
             return false;
         }
 
-        ctx.stream = ctx.format_ctx->streams[video_stream_index];
+        ctx.video_stream = ctx.format_ctx->streams[video_stream_index];
 
-        AVCodecParameters* cp = ctx.stream->codecpar;
-        AVCodec* codec = avcodec_find_decoder(cp->codec_id);
-        if (!codec)
+        AVCodecParameters* cp = ctx.video_stream->codecpar;
+        AVCodec* video_codec = avcodec_find_decoder(cp->codec_id);
+        if (!video_codec)
         {
             avformat_free_context(ctx.format_ctx);
             return false;
         }
 
-        ctx.codec_ctx = avcodec_alloc_context3(codec);
-        if (!ctx.codec_ctx)
+        ctx.video_codec_ctx = avcodec_alloc_context3(video_codec);
+        if (!ctx.video_codec_ctx)
         {
             avformat_free_context(ctx.format_ctx);
             return false;
         }
 
-        if (avcodec_parameters_to_context(ctx.codec_ctx, cp) != 0)
+        if (avcodec_parameters_to_context(ctx.video_codec_ctx, cp) != 0)
         {
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
-        if (avcodec_open2(ctx.codec_ctx, codec, nullptr) != 0)
+        if (avcodec_open2(ctx.video_codec_ctx, video_codec, nullptr) != 0)
         {
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
@@ -555,7 +514,7 @@ namespace video
         if (!ctx.frame_av)
         {
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
@@ -563,7 +522,7 @@ namespace video
         if (!ctx.packet)
         {
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             av_frame_free(&ctx.frame_av);
             return false;
         }
@@ -571,13 +530,32 @@ namespace video
         video.frame_width = (u32)cp->width;
         video.frame_height = (u32)cp->height;
 
-        auto stream = ctx.format_ctx->streams[video_stream_index];
-        video.fps = av_q2d(stream->avg_frame_rate);
+        auto video_stream = ctx.format_ctx->streams[video_stream_index];
+        video.fps = av_q2d(video_stream->avg_frame_rate);
+
+        AVCodec *audio_codec = 0;
+        ctx.audio_codec_ctx = 0;
+        ctx.audio_stream = 0;
+        int audio_stream_index = av_find_best_stream(ctx.format_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, &audio_codec, 0);
+        if (audio_stream_index >= 0)
+        { 
+            ctx.audio_codec_ctx = avcodec_alloc_context3(audio_codec);
+            if (ctx.audio_codec_ctx)
+            {
+                ctx.audio_stream = ctx.format_ctx->streams[audio_stream_index];
+                if (avcodec_parameters_to_context(ctx.audio_codec_ctx, ctx.audio_stream->codecpar) < 0)
+                {
+                    avcodec_close(ctx.audio_codec_ctx);
+                    ctx.audio_codec_ctx = 0;
+                    ctx.audio_stream = 0;
+                }
+            }
+        }        
 
         if (!create_frame(ctx.frame_rgba, video.frame_width, video.frame_height))
         {
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             av_frame_free(&ctx.frame_av);
             av_packet_free(&ctx.packet);
             return false;
@@ -598,7 +576,7 @@ namespace video
 
         av_frame_free(&ctx.frame_av);
         av_packet_free(&ctx.packet);
-        avcodec_close(ctx.codec_ctx);
+        avcodec_close(ctx.video_codec_ctx);
         avformat_close_input(&ctx.format_ctx);
 
         mem::free(&ctx);
@@ -632,7 +610,7 @@ namespace video
     bool create_video(VideoReader const& src, VideoWriter& dst, cstr dst_path, u32 dst_width, u32 dst_height)
     {
         auto& src_ctx = get_context(src);
-        auto src_stream = src_ctx.stream;
+        auto src_stream = src_ctx.video_stream;
         
         auto src_codec = avcodec_find_decoder(src_stream->codecpar->codec_id);
         if (!src_codec)
@@ -653,7 +631,7 @@ namespace video
 
         int w = (int)dst_width;
         int h = (int)dst_height;
-        auto fmt = (int)src_ctx.codec_ctx->pix_fmt;
+        auto fmt = (int)src_ctx.video_codec_ctx->pix_fmt;
 
         ctx.frame_av = av_frame_alloc();
         if (!ctx.frame_av)
@@ -685,46 +663,46 @@ namespace video
             return false;
         }
 
-        ctx.stream = stream;
+        ctx.video_stream = stream;
         stream->time_base = src_stream->time_base;
 
         // Set up the output codec context
-        auto dst_codec = avcodec_find_encoder(src_ctx.codec_ctx->codec_id);
+        auto dst_codec = avcodec_find_encoder(src_ctx.video_codec_ctx->codec_id);
         if (!dst_codec) 
         {
             assert("*** avcodec_find_encoder ***" && false);
             return false;
         }
 
-        ctx.codec_ctx = avcodec_alloc_context3(dst_codec);
-        if (!ctx.codec_ctx)
+        ctx.video_codec_ctx = avcodec_alloc_context3(dst_codec);
+        if (!ctx.video_codec_ctx)
         {
             assert("*** avcodec_alloc_context3 ***" && false);
             avformat_free_context(ctx.format_ctx);
             return false;
         }
         
-        ctx.codec_ctx->codec_id = src_codec->id;
-        ctx.codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
-        ctx.codec_ctx->pix_fmt = src_ctx.codec_ctx->pix_fmt;
-        ctx.codec_ctx->width = w;
-        ctx.codec_ctx->height = h;
-        ctx.codec_ctx->time_base = src_stream->time_base;
-        ctx.codec_ctx->framerate = src_stream->avg_frame_rate;
+        ctx.video_codec_ctx->codec_id = src_codec->id;
+        ctx.video_codec_ctx->codec_type = AVMEDIA_TYPE_VIDEO;
+        ctx.video_codec_ctx->pix_fmt = src_ctx.video_codec_ctx->pix_fmt;
+        ctx.video_codec_ctx->width = w;
+        ctx.video_codec_ctx->height = h;
+        ctx.video_codec_ctx->time_base = src_stream->time_base;
+        ctx.video_codec_ctx->framerate = src_stream->avg_frame_rate;
 
-        if (avcodec_open2(ctx.codec_ctx, dst_codec, nullptr) != 0)
+        if (avcodec_open2(ctx.video_codec_ctx, dst_codec, nullptr) != 0)
         {
             assert("*** avcodec_open2 ***" && false);
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
-        if (avcodec_parameters_from_context(stream->codecpar, ctx.codec_ctx) < 0)
+        if (avcodec_parameters_from_context(stream->codecpar, ctx.video_codec_ctx) < 0)
         {
             assert("*** avcodec_parameters_from_context ***" && false);
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
@@ -732,7 +710,7 @@ namespace video
         {
             assert("*** avio_open ***" && false);
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
@@ -740,7 +718,7 @@ namespace video
         {
             assert("*** avformat_write_header ***" && false);
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             return false;
         }
 
@@ -750,13 +728,13 @@ namespace video
         if (!create_frame(ctx.frame_rgba, dst_width, dst_height))
         {
             avformat_free_context(ctx.format_ctx);
-            avcodec_free_context(&ctx.codec_ctx);
+            avcodec_free_context(&ctx.video_codec_ctx);
             av_frame_free(&ctx.frame_av);
             return false;
         }
 
-        auto tb = ctx.stream->time_base.den / ctx.stream->time_base.num;
-        auto fr = src_ctx.stream->avg_frame_rate.den / src_ctx.stream->avg_frame_rate.num;
+        auto tb = ctx.video_stream->time_base.den / ctx.video_stream->time_base.num;
+        auto fr = src_ctx.video_stream->avg_frame_rate.den / src_ctx.video_stream->avg_frame_rate.num;
 
         ctx.packet_duration = tb * fr;
 
@@ -777,7 +755,7 @@ namespace video
         
         av_frame_free(&ctx.frame_av);
         //av_packet_free(&ctx.packet);
-        avcodec_free_context(&ctx.codec_ctx);
+        avcodec_free_context(&ctx.video_codec_ctx);
         avformat_free_context(ctx.format_ctx);
 
         mem::free(&ctx);
@@ -848,6 +826,53 @@ namespace video
 
 namespace video
 {
+    // Deprecated
+    static bool read_next_frame(VideoReaderContext const& ctx)
+    {
+        auto packet = ctx.packet;
+        auto decoder = ctx.video_codec_ctx;
+        auto frame = ctx.frame_av;
+        auto stream = ctx.video_stream;
+
+        for (;;)
+        {
+            if (av_read_frame(ctx.format_ctx, ctx.packet) < 0)
+            {
+                //assert("*** av_read_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
+
+            if (ctx.packet->stream_index != ctx.video_stream->index)
+            {
+                //assert("*** ctx.packet->stream_index != ctx.video_stream_index ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            if(avcodec_send_packet(ctx.video_codec_ctx, ctx.packet) < 0)
+            {
+                assert("*** avcodec_send_packet ***" && false);
+                av_packet_unref(ctx.packet);
+                return false;
+            }
+
+            if (avcodec_receive_frame(ctx.video_codec_ctx, ctx.frame_av) < 0)
+            {
+                //assert("*** avcodec_receive_frame ***" && false);
+                av_packet_unref(ctx.packet);
+                continue;
+            }
+
+            break;
+        }
+
+        convert_frame(ctx.frame_av, av_frame(ctx.frame_rgba));
+
+        return true;
+    }
+
+
     // Deprecated
     void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out)
     {
