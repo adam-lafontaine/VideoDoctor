@@ -46,6 +46,8 @@ namespace video_display
         WIDTH_4K
     };
 
+    constexpr auto VIDEO_EXTENSION = ".mp4";
+
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
     constexpr auto OUT_VIDEO_TEMP_PATH = "./vdtemp.mp4";
     constexpr auto OUT_VIDEO_DIR = "/home/adam/Repos/VideoDoctor/video/build/";
@@ -100,7 +102,7 @@ namespace video_display
 
         VideoMotionState vms;
 
-        vid::VideoWriter dst_video;
+        vid::VideoWriter dst_video;        
 
         VideoLoadStatus load_status = VideoLoadStatus::NotLoaded;
         VideoPlayStatus play_status = VideoPlayStatus::NotLoaded;
@@ -172,8 +174,6 @@ namespace internal
 
     void pause_video(DisplayState& state);
 
-    void stop_video(DisplayState& state);
-
     void motion_detection_settings(DisplayState& state);
 
     void scan_region_settings(DisplayState& state);
@@ -203,6 +203,8 @@ namespace video_display
 
     inline bool init(DisplayState& state)
     {
+        state.dst_video.write_audio = true;
+
         u32 display_w = DISPLAY_FRAME_WIDTH;
         u32 display_h = DISPLAY_FRAME_HEIGHT;
 
@@ -226,7 +228,7 @@ namespace video_display
 
         auto& fb = state.fb_video;
         fb.SetTitle("Video Select");
-        fb.SetTypeFilters({".mp4"});
+        fb.SetTypeFilters({VIDEO_EXTENSION});
         fb.SetDirectory(fs::path(SRC_VIDEO_DIR));
 
         state.motion_on = true;
@@ -315,6 +317,9 @@ namespace video_display
             {
                 internal::generate_video_async(state);
             }
+
+            ImGui::SameLine(); 
+            ImGui::Checkbox("Audio", &state.dst_video.write_audio);
         }
         else if (state.play_status == VPS::Play || state.play_status == VPS::Generate)
         {

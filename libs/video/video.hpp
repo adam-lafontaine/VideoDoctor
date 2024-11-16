@@ -48,6 +48,8 @@ namespace video
 
         u32 frame_width = 0;
         u32 frame_height = 0;
+
+        bool write_audio = true;
     };
     
     

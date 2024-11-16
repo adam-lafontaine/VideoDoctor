@@ -465,7 +465,7 @@ namespace internal
         {
             reset_video_status(state);
             vid::save_and_close_video(dst_video);
-            fs::rename(temp_path, timestamp_file_path(OUT_VIDEO_DIR, "out_video", ".mp4"));
+            fs::rename(temp_path, timestamp_file_path(OUT_VIDEO_DIR, "out_video", VIDEO_EXTENSION));
         }
     }
 
@@ -563,14 +563,6 @@ namespace internal
         state.play_status = VPS::Pause;
     }
 
-
-    void stop_video(DisplayState& state)
-    {
-        //TODO
-        state.play_status = VPS::Pause;
-        //reload/close
-    }
-    
 
     void motion_detection_settings(DisplayState& state)
     {

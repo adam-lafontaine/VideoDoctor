@@ -891,10 +891,10 @@ namespace video
             return false;
         }
 
-        if (src_ctx.audio_stream && !create_audio_stream(src_ctx, ctx))
+        if (dst.write_audio && (!src_ctx.audio_stream || !create_audio_stream(src_ctx, ctx)))
         {
-            return false;
-        }        
+            dst.write_audio = false;
+        }
 
         if (!(ctx.format_ctx->oformat->flags & AVFMT_NOFILE) && avio_open(&ctx.format_ctx->pb, dst_path, AVIO_FLAG_WRITE) < 0)
         {
@@ -982,7 +982,7 @@ namespace video
             encode_video_frame(dst_ctx, src_av->pts);
         };
 
-        if (src_ctx.audio_stream)
+        if (src_ctx.audio_stream && dst_ctx.audio_stream)
         {
             auto const on_read_audio = [&]()
             {
@@ -1014,7 +1014,7 @@ namespace video
             encode_video_frame(dst_ctx, src_av->pts);
         };
 
-        if (src_ctx.audio_stream)
+        if (src_ctx.audio_stream && dst_ctx.audio_stream)
         {
             auto const on_read_audio = [&]()
             {
