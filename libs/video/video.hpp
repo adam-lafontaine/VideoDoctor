@@ -72,6 +72,11 @@ namespace video
     void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb);
 
     bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, fn_bool const& proc_cond);
+
+
+    VideoFrame current_frame(VideoReader const& video);
+
+    VideoFrame current_frame(VideoWriter const& writer);
     
 }
 

@@ -27,8 +27,7 @@ namespace video
 
         AVFrame* av_frame;
         AVPacket* packet;
-
-        //FrameRGBA frame_rgba;
+        
         AVFrame* av_rgba;
 
     };
@@ -46,8 +45,7 @@ namespace video
         AVStream* audio_stream;
 
         AVFrame* av_frame;
-
-        //FrameRGBA frame_rgba;
+        
         AVFrame* av_rgba;
 
         i64 packet_duration = -1;
@@ -65,46 +63,9 @@ namespace video
         return *(VideoWriterContext*)(video.video_handle);
     }
 
-
-    // Deprecated
-    static inline AVFrame* av_frame(FrameRGBA const& frame_rgba)
-    {
-        return (AVFrame*)frame_rgba.frame_handle;
-    }
-
-
-    /*VideoFrame get_frame(VideoReader const& video)
-    {
-        auto ctx = get_context(video);
-
-        VideoFrame frame;
-        frame.rgba = ctx.frame_rgba.view;
-
-        frame.gray.width = frame.rgba.width;
-        frame.gray.height = frame.rgba.height;
-        frame.gray.matrix_data_ = ctx.av_frame->data[0]; // assume YUV
-
-        return frame;
-    }
-
-
-    VideoFrame get_frame(VideoWriter const& writer)
-    {
-        auto ctx = get_context(writer);
-
-        VideoFrame frame;
-        frame.rgba = ctx.frame_rgba.view;
-
-        frame.gray.width = frame.rgba.width;
-        frame.gray.height = frame.rgba.height;
-        frame.gray.matrix_data_ = ctx.av_frame->data[0]; // assume YUV
-
-        return frame;
-    }*/
-
     
     template <class CTX>
-    static inline VideoFrame current_frame(CTX const& ctx)
+    static inline VideoFrame get_current_frame(CTX const& ctx)
     {
         auto w = ctx.av_frame->width;
         auto h = ctx.av_frame->height;
@@ -120,18 +81,6 @@ namespace video
         frame.gray.matrix_data_ = ctx.av_frame->data[0]; // assume YUV
 
         return frame;
-    }
-    
-    
-    VideoFrame current_frame(VideoReader const& video)
-    {
-        return current_frame(get_context(video));
-    }
-
-
-    VideoFrame current_frame(VideoWriter const& writer)
-    {
-        return current_frame(get_context(writer));
     }
 
 }
@@ -173,6 +122,15 @@ namespace video
             dst->data, dst->linesize);
 
         sws_freeContext(sws_ctx);
+    }
+
+
+    static void convert_frame(AVFrame* src, AVFrame* dst, SwsContext* sws)
+    {        
+        sws_scale(
+            sws,
+            src->data, src->linesize, 0, src->height,
+            dst->data, dst->linesize);
     }
     
 
@@ -264,85 +222,6 @@ namespace video
         }
     }
 
-    // delete?
-    static void copy_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx)
-    {
-        auto src_av = src_ctx.av_frame;
-        auto src_rgba = src_ctx.av_rgba;
-        auto dst_av = dst_ctx.av_frame;
-        auto dst_rgba = dst_ctx.av_rgba;
-
-        convert_frame(src_av, dst_av);
-        convert_frame(src_av, src_rgba);
-        convert_frame(src_av, dst_rgba);
-
-        encode_video_frame(dst_ctx, src_ctx.av_frame->pts);
-    }
-
-
-    static void crop_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx)
-    { 
-        auto decoder = src_ctx.video_codec_ctx;
-        auto encoder = dst_ctx.video_codec_ctx;
-        auto w = decoder->width;
-        auto h = decoder->height;
-        auto crop_w = encoder->width;
-        auto crop_h = encoder->height;
-
-        // TODO: detect crop position
-        auto crop_x = w / 4;
-        auto crop_y = h / 4;
-
-        auto dst_data = dst_ctx.av_frame->data;
-        auto dst_linesize = dst_ctx.av_frame->linesize;
-
-        auto src_av = src_ctx.av_frame;
-        auto src_rgba = src_ctx.av_rgba;
-        auto dst_av = dst_ctx.av_frame;
-        auto dst_rgba = dst_ctx.av_rgba;
-
-        convert_frame(src_av, src_rgba);
-
-        if (av_frame_get_buffer(dst_av, 32) < 0)
-        {
-            assert("*** av_frame_get_buffer / crop ***" && false);
-        }
-
-        #define USE_IMAGE
-
-        #ifndef USE_IMAGE
-
-        // Crop by setting src_data pointer for the RGBA frame
-        u8* crop_data[AV_NUM_DATA_POINTERS] = { src_rgba->data[0] + crop_y * src_rgba->linesize[0] + crop_x * 4 };
-        int crop_linesize[AV_NUM_DATA_POINTERS] = { src_rgba->linesize[0] };
-
-        // Convert cropped RGBA frame to YUV420P        
-        auto crop_sws = create_sws(src_rgba, crop_w, crop_h, dst_av, crop_w, crop_h);
-        sws_scale(crop_sws, crop_data, crop_linesize, 0, crop_h,
-                    dst_av->data, dst_av->linesize);                
-        sws_freeContext(crop_sws);
-
-        convert_frame(dst_av, dst_rgba);
-
-        #else
-
-        auto src_view = current_frame(src_ctx).rgba;
-        auto dst_view = current_frame(dst_ctx).rgba;
-
-        assert(dst_view.width == (u32)crop_w);
-        assert(dst_view.height == (u32)crop_h);
-        assert(dst_av->width == crop_w);
-        assert(dst_av->height == crop_h);
-        
-        auto sub = img::sub_view(src_view, img::make_rect(crop_x, crop_y, crop_w, crop_h));
-        img::copy(sub, dst_view);
-        convert_frame(dst_rgba, dst_av);
-
-        #endif
-
-        encode_video_frame(dst_ctx, src_av->pts);        
-    }
-    
 }
 
 
@@ -359,6 +238,8 @@ namespace video
         auto frame = ctx.av_frame;
         int video_stream_index = ctx.video_stream->index;
 
+        SwsContext* sws = 0;
+
         while (av_read_frame(ctx.format_ctx, packet) >= 0) 
         {
             if (packet->stream_index == video_stream_index) 
@@ -368,8 +249,13 @@ namespace video
                 {
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {                        
-                        convert_frame(ctx.av_frame, ctx.av_rgba);
+                    {     
+                        if (!sws)
+                        {
+                            sws = create_sws(ctx.av_frame, ctx.av_rgba);
+                        }
+
+                        convert_frame(ctx.av_frame, ctx.av_rgba, sws);
                         on_read_video();
                     }
                 }
@@ -393,6 +279,8 @@ namespace video
             audio_stream_index = ctx.audio_stream->index;
         }
 
+        SwsContext* sws = 0;
+
         while (av_read_frame(ctx.format_ctx, packet) >= 0) 
         {
             if (packet->stream_index == video_stream_index) 
@@ -402,8 +290,13 @@ namespace video
                 {
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
-                    {                        
-                        convert_frame(ctx.av_frame, ctx.av_rgba);
+                    {      
+                        if (!sws)
+                        {
+                            sws = create_sws(ctx.av_frame, ctx.av_rgba);
+                        }
+
+                        convert_frame(ctx.av_frame, ctx.av_rgba, sws);
                         on_read_video();
                     }
                 }
@@ -433,6 +326,8 @@ namespace video
             return !done;
         };
 
+        SwsContext* sws = 0;
+
         while (cond() && read()) 
         {
             if (packet->stream_index == video_stream_index) 
@@ -443,7 +338,12 @@ namespace video
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
                     {
-                        convert_frame(ctx.av_frame, ctx.av_rgba);
+                        if (!sws)
+                        {
+                            sws = create_sws(ctx.av_frame, ctx.av_rgba);
+                        }
+
+                        convert_frame(ctx.av_frame, ctx.av_rgba, sws);
                         on_read_video();
                     }
                 }
@@ -476,6 +376,8 @@ namespace video
             return !done;
         };
 
+        SwsContext* sws = 0;
+
         while (cond() && read()) 
         {
             if (packet->stream_index == video_stream_index) 
@@ -486,7 +388,12 @@ namespace video
                     // Receive frame from decoder
                     while (avcodec_receive_frame(decoder, frame) == 0) 
                     {
-                        convert_frame(ctx.av_frame, ctx.av_rgba);
+                        if (!sws)
+                        {
+                            sws = create_sws(ctx.av_frame, ctx.av_rgba);
+                        }
+
+                        convert_frame(ctx.av_frame, ctx.av_rgba, sws);
                         on_read_video();
                     }
                 }
@@ -1106,6 +1013,18 @@ namespace video
             return for_each_video_frame(src, on_read_video, proc_cond);
         }
     }
+    
+    
+    VideoFrame current_frame(VideoReader const& video)
+    {
+        return get_current_frame(get_context(video));
+    }
+
+
+    VideoFrame current_frame(VideoWriter const& writer)
+    {
+        return get_current_frame(get_context(writer));
+    }
 
 }
 
@@ -1114,6 +1033,13 @@ namespace video
 
 namespace video
 {
+    // Deprecated
+    static inline AVFrame* av_frame(FrameRGBA const& frame_rgba)
+    {
+        return (AVFrame*)frame_rgba.frame_handle;
+    }
+
+
     // Deprecated
     static bool read_next_frame(VideoReaderContext const& ctx)
     {
@@ -1232,6 +1158,71 @@ namespace video
 
         frame.frame_handle = 0;
         frame.view.matrix_data_ = 0;
+    }
+
+
+    // Deprecated
+    static void crop_frame(VideoReaderContext const& src_ctx, VideoWriterContext const& dst_ctx)
+    { 
+        auto decoder = src_ctx.video_codec_ctx;
+        auto encoder = dst_ctx.video_codec_ctx;
+        auto w = decoder->width;
+        auto h = decoder->height;
+        auto crop_w = encoder->width;
+        auto crop_h = encoder->height;
+
+        // TODO: detect crop position
+        auto crop_x = w / 4;
+        auto crop_y = h / 4;
+
+        auto dst_data = dst_ctx.av_frame->data;
+        auto dst_linesize = dst_ctx.av_frame->linesize;
+
+        auto src_av = src_ctx.av_frame;
+        auto src_rgba = src_ctx.av_rgba;
+        auto dst_av = dst_ctx.av_frame;
+        auto dst_rgba = dst_ctx.av_rgba;
+
+        convert_frame(src_av, src_rgba);
+
+        if (av_frame_get_buffer(dst_av, 32) < 0)
+        {
+            assert("*** av_frame_get_buffer / crop ***" && false);
+        }
+
+        #define USE_IMAGE
+
+        #ifndef USE_IMAGE
+
+        // Crop by setting src_data pointer for the RGBA frame
+        u8* crop_data[AV_NUM_DATA_POINTERS] = { src_rgba->data[0] + crop_y * src_rgba->linesize[0] + crop_x * 4 };
+        int crop_linesize[AV_NUM_DATA_POINTERS] = { src_rgba->linesize[0] };
+
+        // Convert cropped RGBA frame to YUV420P        
+        auto crop_sws = create_sws(src_rgba, crop_w, crop_h, dst_av, crop_w, crop_h);
+        sws_scale(crop_sws, crop_data, crop_linesize, 0, crop_h,
+                    dst_av->data, dst_av->linesize);                
+        sws_freeContext(crop_sws);
+
+        convert_frame(dst_av, dst_rgba);
+
+        #else
+
+        auto src_view = get_current_frame(src_ctx).rgba;
+        auto dst_view = get_current_frame(dst_ctx).rgba;
+
+        assert(dst_view.width == (u32)crop_w);
+        assert(dst_view.height == (u32)crop_h);
+        assert(dst_av->width == crop_w);
+        assert(dst_av->height == crop_h);
+        
+        auto sub = img::sub_view(src_view, img::make_rect(crop_x, crop_y, crop_w, crop_h));
+        img::copy(sub, dst_view);
+        convert_frame(dst_rgba, dst_av);
+
+        #endif
+
+        encode_video_frame(dst_ctx, src_av->pts);        
     }
 
 
