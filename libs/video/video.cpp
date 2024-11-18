@@ -644,7 +644,8 @@ namespace video
     {
         ctx.av_frame = av_frame_alloc();
         if (!ctx.av_frame)
-        {            
+        {      
+            assert("*** av_frame_alloc ***" && false);      
             return false;
         }
 
@@ -707,7 +708,7 @@ namespace video
         avframe->width = w;
         avframe->height = h;
 
-        if (av_frame_get_buffer(ctx.av_frame, align) < 0)
+        if (av_frame_get_buffer(avframe, align) < 0)
         {
             assert("*** av_frame_get_buffer ***" && false);
             av_frame_free(&avframe);
@@ -951,6 +952,7 @@ namespace video
 
         if (!create_av_frame(ctx, dst_width, dst_height, fmt))
         {
+            assert(false);
             return false;
         }
         
@@ -962,6 +964,7 @@ namespace video
 
         if (!create_video_stream(src_ctx, ctx, dst_width, dst_height))
         {
+            assert(false);
             return false;
         }
 
@@ -985,8 +988,9 @@ namespace video
         dst.frame_width = dst_width;
         dst.frame_height = dst_height;
 
-        if (create_av_rgba(ctx, dst_width, dst_height))
+        if (!create_av_rgba(ctx, dst_width, dst_height))
         {
+            assert(false);
             return false;
         }
 
