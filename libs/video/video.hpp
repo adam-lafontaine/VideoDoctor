@@ -48,6 +48,8 @@ namespace video
 
         u32 frame_width = 0;
         u32 frame_height = 0;
+
+        bool write_audio = true;
     };
     
     
@@ -86,12 +88,6 @@ namespace video
 
     bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, fn_bool const& proc_cond);
     
-}
-
-
-namespace video
-{
-
 }
 
 
