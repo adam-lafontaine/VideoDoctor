@@ -217,8 +217,6 @@ namespace video
         packet->stream_index = out_stream->index;
 
         av_interleaved_write_frame(dst_ctx.format_ctx, packet);
-
-        //av_packet_unref(packet);
     }
     
     

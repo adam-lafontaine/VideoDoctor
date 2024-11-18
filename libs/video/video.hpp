@@ -91,12 +91,6 @@ namespace video
 }
 
 
-namespace video
-{
-
-}
-
-
 /* Deprecated */
 
 namespace video
