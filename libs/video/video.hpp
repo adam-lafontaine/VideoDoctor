@@ -10,14 +10,6 @@ namespace video
 {
     namespace img = image;
 
-    class FrameRGBA
-    {
-    public:
-        u64 frame_handle = 0;
-
-        img::ImageView view;
-    };
-
 
     class VideoFrame
     {
@@ -62,13 +54,6 @@ namespace video
     using fn_bool = fn<bool()>;
 
 
-    bool create_frame(FrameRGBA& frame, u32 width, u32 height);
-
-    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
-
-    void destroy_frame(FrameRGBA& frame);
-
-
     bool open_video(VideoReader& video, cstr filepath);
 
     void close_video(VideoReader& video);
@@ -87,6 +72,11 @@ namespace video
     void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb);
 
     bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, fn_bool const& proc_cond);
+
+
+    VideoFrame current_frame(VideoReader const& video);
+
+    VideoFrame current_frame(VideoWriter const& writer);
     
 }
 
@@ -95,6 +85,26 @@ namespace video
 
 namespace video
 {
+    class FrameRGBA
+    {
+    public:
+        u64 frame_handle = 0;
+
+        img::ImageView view;
+    };
+
+
+    // Deprecated
+    bool create_frame(FrameRGBA& frame, u32 width, u32 height);
+
+    // Deprecated
+    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
+
+    // Deprecated
+    void destroy_frame(FrameRGBA& frame);
+
+
+
     using FrameList = std::initializer_list<FrameRGBA>;
 
 
