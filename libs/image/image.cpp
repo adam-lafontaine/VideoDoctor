@@ -315,21 +315,78 @@ namespace image
 
 namespace image
 {
-    /*template <class SRC, class DST>
-    static void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
-    {
-        f32 const i_scale = 1.0f / (scale * scale);
+    template <class SRC, class DST, u32 SCALE>
+    void scale_down_rgba_t(SRC const& src, DST const& dst)
+    {     
+        constexpr u32 scale = SCALE;   
+        constexpr f32 i_scale = 1.0f / (scale * scale);
+
+        Pixel* rd = 0;
+
+        Pixel* rs[scale] = { 0 };
+
+        Pixel ps;
 
         f32 red = 0.0f;
         f32 green = 0.0f;
         f32 blue = 0.0f;
-        f32 alpha = 0.0f;
 
         for (u32 yd = 0; yd < dst.height; yd++)
         {
             auto ys = scale * yd;
 
-            auto rd = row_begin(dst, yd);
+            rd = row_begin(dst, yd);
+            for (u32 i = 0; i < scale; i++)
+            {
+                rs[i] = row_begin(src, ys + i);
+            }
+
+            for (u32 xd = 0; xd < dst.width; xd++)
+            {
+                red   = 0.0f;
+                green = 0.0f;
+                blue  = 0.0f;
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        ps = rs[v][u];
+                        red   += ps.red;
+                        green += ps.green;
+                        blue  += ps.blue;
+                    }
+                }
+
+                red   *= i_scale;
+                green *= i_scale;
+                blue  *= i_scale;
+
+                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue);
+            }
+        }
+    }
+    
+    
+    template <class SRC, class DST>
+    static void scale_down_rgba_s(SRC const& src, DST const& dst, u32 scale)
+    {
+        f32 const i_scale = 1.0f / (scale * scale);
+
+        Pixel* rd = 0;
+        Pixel* rs = 0;
+
+        Pixel ps;
+
+        f32 red = 0.0f;
+        f32 green = 0.0f;
+        f32 blue = 0.0f;
+
+        for (u32 yd = 0; yd < dst.height; yd++)
+        {
+            auto ys = scale * yd;
+
+            rd = row_begin(dst, yd);
 
             for (u32 xd = 0; xd < dst.width; xd++)
             {
@@ -338,30 +395,73 @@ namespace image
                 red   = 0.0f;
                 green = 0.0f;
                 blue  = 0.0f;
-                alpha = 0.0f;
 
                 for (u32 v = 0; v < scale; v++)
                 {
-                    auto rs = row_begin(src, ys + v) + xs;
+                    rs = row_begin(src, ys + v) + xs;
                     for (u32 u = 0; u < scale; u++)
                     {
                         auto s = rs[u];
-                        red   += i_scale * s.red;
-                        green += i_scale * s.green;
-                        blue  += i_scale * s.blue;
-                        alpha += i_scale * s.alpha;
+                        red   += s.red;
+                        green += s.green;
+                        blue  += s.blue;
                     }
                 }
 
-                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue, (u8)alpha);
+                red   *= i_scale;
+                green *= i_scale;
+                blue  *= i_scale;
+
+                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue);
+            }
+        }
+    }
+
+
+    template <class SRC, class DST, u32 SCALE>
+    static void scale_down_gray_t(SRC const& src, DST const& dst)
+    {
+        constexpr u32 scale = SCALE;
+        constexpr f32 i_scale = 1.0f / (scale * scale);
+
+        u8* rd = 0;
+        u8* rs[scale] = { 0 };
+
+        f32 gray = 0.0f;
+
+        for (u32 yd = 0; yd < dst.height; yd++)
+        {
+            auto ys = scale * yd;
+
+            rd = row_begin(dst, yd);
+            for (u32 i = 0; i < scale; i++)
+            {
+                rs[i] = row_begin(src, ys + i);
+            }
+
+            for (u32 xd = 0; xd < dst.width; xd++)
+            {
+                gray = 0.0f;
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        gray += rs[v][u];
+                    }
+                }
+
+                gray *= i_scale;
+
+                rd[xd] = (u8)gray;
             }
         }
     }
 
 
     template <class SRC, class DST>
-    static void scale_down_gray(SRC const& src, DST const& dst, u32 scale)
-    {
+    static void scale_down_gray_s(SRC const& src, DST const& dst, u32 scale)
+    {        
         f32 const i_scale = 1.0f / (scale * scale);
 
         f32 gray = 0.0f;
@@ -383,13 +483,95 @@ namespace image
                     auto rs = row_begin(src, ys + v) + xs;
                     for (u32 u = 0; u < scale; u++)
                     {
-                        gray += i_scale * rs[u];
+                        gray += rs[u];
                     }
                 }
+
+                gray *= i_scale;
 
                 rd[xd] = (u8)gray;
             }
         }
+    }
+
+
+    template <class SRC, class DST>
+    void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
+    {       
+        switch (scale)
+        {
+        case 2:
+            scale_down_rgba_t<SRC, DST, 2>(src, dst);
+            break;
+
+        case 3:
+            scale_down_rgba_t<SRC, DST, 3>(src, dst);
+            break;
+
+        case 4:
+            scale_down_rgba_t<SRC, DST, 4>(src, dst);
+            break;
+
+        case 5:
+            scale_down_rgba_t<SRC, DST, 5>(src, dst);
+            break;
+
+        case 6:
+            scale_down_rgba_t<SRC, DST, 6>(src, dst);
+            break;
+
+        case 7:
+            scale_down_rgba_t<SRC, DST, 7>(src, dst);
+            break;
+
+        case 8:
+            scale_down_rgba_t<SRC, DST, 8>(src, dst);
+            break;
+
+        default:
+            scale_down_rgba_s(src, dst, scale);
+            break;
+        }        
+    }
+
+
+    template <class SRC, class DST>
+    void scale_down_gray(SRC const& src, DST const& dst, u32 scale)
+    {       
+        switch (scale)
+        {
+        case 2:
+            scale_down_gray_t<SRC, DST, 2>(src, dst);
+            break;
+
+        case 3:
+            scale_down_gray_t<SRC, DST, 3>(src, dst);
+            break;
+
+        case 4:
+            scale_down_gray_t<SRC, DST, 4>(src, dst);
+            break;
+
+        case 5:
+            scale_down_gray_t<SRC, DST, 5>(src, dst);
+            break;
+
+        case 6:
+            scale_down_gray_t<SRC, DST, 6>(src, dst);
+            break;
+
+        case 7:
+            scale_down_gray_t<SRC, DST, 7>(src, dst);
+            break;
+
+        case 8:
+            scale_down_gray_t<SRC, DST, 8>(src, dst);
+            break;
+
+        default:
+            scale_down_gray_s(src, dst, scale);
+            break;
+        }        
     }
 
 
@@ -399,20 +581,10 @@ namespace image
 
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
-        assert(src.width == scale * dst.width);
-        assert(src.height == scale * dst.height);
-        assert(scale > 1);
-        
-        scale_down_rgba(src, dst, scale);
-    }
-
-
-    void scale_down(ImageView const& src, SubView const& dst)
-    {
-        auto scale = src.width / dst.width;
-
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
         assert(src.width == scale * dst.width);
         assert(src.height == scale * dst.height);
         assert(scale > 1);
@@ -540,7 +712,7 @@ namespace image
         assert(scale > 1);
 
         matrix_scale_up(src, dst, scale);
-    }*/
+    }
 
 
     void resize(ImageView const& src, ImageView const& dst)
