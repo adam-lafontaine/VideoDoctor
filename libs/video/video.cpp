@@ -74,26 +74,21 @@ namespace video
 
     
     template <class CTX>
-    static inline VideoFrame get_current_frame(CTX const& ctx) // TODO: replace
+    static inline img::ImageView get_frame_rgba(CTX const& ctx) // TODO: replace
     {
         auto w = ctx.av_frame->width;
         auto h = ctx.av_frame->height;
 
-        VideoFrame frame;
+        img::ImageView view{};
 
-        frame.rgba.width = w;
-        frame.rgba.height = h;
-        frame.rgba.matrix_data_ = (img::Pixel*)ctx.av_rgba->data[0];
+        view.width = w;
+        view.height = h;
+        view.matrix_data_ = (img::Pixel*)ctx.av_rgba->data[0];
 
-        frame.gray.width = w;
-        frame.gray.height = h;
-        frame.gray.matrix_data_ = ctx.av_frame->data[0]; // assume YUV
-
-        assert(frame.rgba.matrix_data_);
-        assert(frame.gray.matrix_data_);
-
-        return frame;
+        return view;
     }
+
+
 
 }
 
@@ -1035,7 +1030,7 @@ namespace video
 
         auto const on_read_video = [&]()
         {
-            cb(current_frame(src), current_frame(dst).rgba);
+            cb(current_frame(src), get_frame_rgba(dst_ctx));
             convert_frame(dst_rgba, dst_av);
             encode_video_frame(dst_ctx, src_av->pts);
         };
@@ -1067,7 +1062,7 @@ namespace video
 
         auto const on_read_video = [&]()
         {
-            cb(current_frame(src), current_frame(dst).rgba);
+            cb(current_frame(src), get_frame_rgba(dst_ctx));
             convert_frame(dst_rgba, dst_av);
             encode_video_frame(dst_ctx, src_av->pts);
         };
@@ -1091,12 +1086,6 @@ namespace video
     VideoFrame current_frame(VideoReader const& video)
     {
         return get_context(video).display_frame_read();
-    }
-
-
-    VideoFrame current_frame(VideoWriter const& writer)
-    {
-        return get_current_frame(get_context(writer));
     }
 
 }
@@ -1281,8 +1270,8 @@ namespace video
 
         #else
 
-        auto src_view = get_current_frame(src_ctx).rgba;
-        auto dst_view = get_current_frame(dst_ctx).rgba;
+        auto src_view = get_frame_rgba(src_ctx);
+        auto dst_view = get_frame_rgba(dst_ctx);
 
         assert(dst_view.width == (u32)crop_w);
         assert(dst_view.height == (u32)crop_h);
@@ -1447,7 +1436,7 @@ namespace video
 
         auto const on_read = [&]()
         {
-            cb(current_frame(src), current_frame(dst).rgba);
+            cb(current_frame(src), get_frame_rgba(dst_ctx));
             convert_frame(dst_rgba, dst_av);
             encode_video_frame(dst_ctx, src_av->pts);         
 
@@ -1478,7 +1467,7 @@ namespace video
 
         auto const on_read = [&]()
         {
-            cb(current_frame(src), current_frame(dst).rgba);
+            cb(current_frame(src), get_frame_rgba(dst_ctx));
             convert_frame(dst_rgba, dst_av);
             encode_video_frame(dst_ctx, src_av->pts);
             

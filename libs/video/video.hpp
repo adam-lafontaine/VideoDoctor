@@ -75,8 +75,6 @@ namespace video
 
 
     VideoFrame current_frame(VideoReader const& video);
-
-    VideoFrame current_frame(VideoWriter const& writer);
     
 }
 

@@ -296,6 +296,7 @@ namespace internal
 
     static bool reload_video(DisplayState& state)
     {
+        vid::close_video(state.vms.src_video);
         reset_video_status(state);
 
         if (!load_src_video(state.vms, state.src_video_filepath))
@@ -465,6 +466,7 @@ namespace internal
         if (vid::process_video(src_video, dst_video, proc, cond))
         {
             reset_video_status(state);
+            vid::close_video(src_video);
             vid::save_and_close_video(dst_video);
             fs::rename(temp_path, timestamp_file_path(OUT_VIDEO_DIR, "out_video", VIDEO_EXTENSION));
         }
