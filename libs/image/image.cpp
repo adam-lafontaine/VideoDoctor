@@ -363,6 +363,11 @@ namespace image
                 blue  *= i_scale;
 
                 rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue);
+
+                for (u32 i = 0; i < scale; i++)
+                {
+                    rs[i] += scale;
+                }
             }
         }
     }
@@ -449,6 +454,8 @@ namespace image
                     {
                         gray += rs[v][u];
                     }
+
+                    rs[v] += scale;
                 }
 
                 gray *= i_scale;
@@ -571,7 +578,7 @@ namespace image
         default:
             scale_down_gray_s(src, dst, scale);
             break;
-        }        
+        }
     }
     
 
@@ -588,16 +595,14 @@ namespace image
             auto yd = scale * ys;
             auto rs = row_begin(src, ys);
 
+            for (u32 i = 0; i < scale; i++)
+            {
+                rd[i] = row_begin(dst, yd + i);
+            }
+
             for (u32 xs = 0; xs < src.width; xs++)
             {
-                auto xd = scale * xs;
-
                 ps = rs[xs];
-
-                for (u32 i = 0; i < scale; i++)
-                {
-                    rd[i] = row_begin(dst, yd + i);
-                }
 
                 for (u32 v = 0; v < scale; v++)
                 {
@@ -605,6 +610,8 @@ namespace image
                     {
                         rd[v][u] = ps;
                     }
+
+                    rd[v] += scale;
                 }
             }
         }
@@ -873,6 +880,7 @@ namespace image
 
     void map_scale_down(GrayView const& src, ImageView const& dst)
     {
+        constexpr u32 SCALE_MAX = 8;
         auto scale = src.width / dst.width;
 
         assert(src.matrix_data_);
@@ -880,8 +888,12 @@ namespace image
         assert(src.width == scale * dst.width);
         assert(src.height == scale * dst.height);
         assert(scale > 1);
+        assert(scale <= SCALE_MAX);
         
         f32 const i_scale = 1.0f / (scale * scale);
+
+        Pixel* rd = 0;
+        u8* rs[SCALE_MAX] = { 0 };
 
         f32 gray = 0.0f;
 
@@ -889,22 +901,27 @@ namespace image
         {
             auto ys = scale * yd;
 
-            auto rd = row_begin(dst, yd);
+            rd = row_begin(dst, yd);
+            for (u32 i = 0; i < scale; i++)
+            {
+                rs[i] = row_begin(src, ys + i);
+            }
 
             for (u32 xd = 0; xd < dst.width; xd++)
             {
-                auto xs = scale * xd;
-
                 gray = 0.0f;
 
                 for (u32 v = 0; v < scale; v++)
                 {
-                    auto rs = row_begin(src, ys + v) + xs;
                     for (u32 u = 0; u < scale; u++)
                     {
-                        gray += i_scale * rs[u];
+                        gray += rs[v][u];
                     }
+
+                    rs[v] += scale;
                 }
+
+                gray *= i_scale;
 
                 rd[xd] = to_pixel((u8)gray);
             }

@@ -181,8 +181,8 @@ namespace motion
         auto v = img::to_span(mot.values);
         auto o = img::to_span(mot.out);
 
-        //img::scale_down(src, mot.values);
-        img::resize(src, mot.values);
+        img::scale_down(src, mot.values);
+        //img::resize(src, mot.values);
         span::transform(v, t, o, abs_avg_delta);
 
         auto scale = src.width / mot.values.width;
@@ -265,8 +265,8 @@ namespace motion
 
         auto proc_scan_rect = rect_scale_down(src_scan_rect, proc_scale);
 
-        //img::scale_down(src_gray, gray);
-        img::resize(src_gray, gray);
+        img::scale_down(src_gray, gray);
+        //img::resize(src_gray, gray);
         img::gradients(gray, edges);
         update(gm.edge_motion, edges, proc_scan_rect, motion);
 

@@ -369,6 +369,9 @@ namespace internal
         else
         {
             img::map_scale_up(proc_gray, state.vfx_view);
+
+            auto gray = vid::current_frame(vms.src_video).gray;
+            //img::map_scale_down(gray, state.vfx_view);
         }
 
         if (state.show_out_region)

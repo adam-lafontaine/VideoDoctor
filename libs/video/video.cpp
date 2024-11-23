@@ -30,6 +30,8 @@ namespace video
         
         AVFrame* av_rgba;
 
+        
+
     };
 
 
@@ -79,6 +81,9 @@ namespace video
         frame.gray.width = w;
         frame.gray.height = h;
         frame.gray.matrix_data_ = ctx.av_frame->data[0]; // assume YUV
+
+        assert(frame.rgba.matrix_data_);
+        assert(frame.gray.matrix_data_);
 
         return frame;
     }
