@@ -224,8 +224,48 @@ namespace image
     }
 
 
+    template <class SRC, class DST, class FN, typename DT>
+    static void transform_scale_up_matrix_t(DT tval, SRC const& src, DST const& dst, u32 scale, FN const& func)
+    {
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+        
+        DT p = tval;
+
+        DT* rd[SCALE_MAX] = { 0 };
+
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 i = 0; i < scale; i++)
+            {
+                rd[i] = row_begin(dst, yd + i);
+            }
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {                
+                p = func(rs[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[v][u] = p;
+                    }
+
+                    rd[v] += scale;
+                }
+            }
+        }
+    }
+    
+    
+    
     template <class SRC, class DST, class FN>
-    static void transform_scale_up(SRC const& src, DST const& dst, u32 scale, FN const& func)
+    static void transform_scale_up_matrix_s(SRC const& src, DST const& dst, u32 scale, FN const& func)
     {
         for (u32 ys = 0; ys < src.height; ys++)
         {
@@ -251,8 +291,48 @@ namespace image
     }
 
 
+    template <class SRC1, class SRC2, class DST, class FN, typename DT>
+    static void transform_scale_up_matrix_t(DT tval, SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    {
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+        
+        DT p = tval;
+
+        DT* rd[SCALE_MAX] = { 0 };
+
+        for (u32 ys = 0; ys < src1.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs1 = row_begin(src1, ys);
+            auto rs2 = row_begin(src2, ys);
+
+            for (u32 i = 0; i < scale; i++)
+            {
+                rd[i] = row_begin(dst, yd + i);
+            }
+
+            for (u32 xs = 0; xs < src1.width; xs++)
+            {                
+                p = func(rs1[xs], rs2[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[v][u] = p;
+                    }
+
+                    rd[v] += scale;
+                }
+            }
+        }
+    }
+
+
     template <class SRC1, class SRC2, class DST, class FN>
-    static void transform_scale_up(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    static void transform_scale_up_matrix_s(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
     {
         for (u32 ys = 0; ys < src1.height; ys++)
         {
@@ -279,6 +359,56 @@ namespace image
     }
 
 
+    template <class SRC, class DST, class FN>
+    static void transform_scale_up_matrix(SRC const& src, DST const& dst, u32 scale, FN const& func)
+    {        
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        {
+            auto tval = row_begin(dst, 0)[0];
+            transform_scale_up_matrix_t(tval, src, dst, scale, func);
+        }
+            break;
+
+        default:
+            transform_scale_up_matrix_s(src, dst, scale, func);
+            break;
+        }
+    }
+
+
+    template <class SRC1, class SRC2, class DST, class FN>
+    static void transform_scale_up_matrix(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    {
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        {
+            auto tval = row_begin(dst, 0)[0];
+            transform_scale_up_matrix_t(tval, src1, src2, dst, scale, func);
+        }
+            break;
+
+        default:
+            transform_scale_up_matrix_s(src1, src2, dst, scale, func);
+            break;
+        }
+    }
+
+
     void transform_scale_up(GrayView const& src, ImageView const& dst, fn<Pixel(u8)> const& func)
     {
         auto scale = dst.width / src.width;
@@ -289,7 +419,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        transform_scale_up(src, dst, scale, func);
+        transform_scale_up_matrix(src, dst, scale, func);
     }
 
 
@@ -306,7 +436,7 @@ namespace image
         assert(dst.height == src1.height * scale);
         assert(scale > 1);
 
-        transform_scale_up(src1, src2, dst, scale, func);
+        transform_scale_up_matrix(src1, src2, dst, scale, func);
     }
 }
 
@@ -582,11 +712,12 @@ namespace image
     }
     
 
-    template <class SRC, class DST, class T, u32 SCALE>
-    void scale_up_matrix_t(SRC const& src, DST const& dst)
+    template <class SRC, class DST, class T>
+    void scale_up_matrix_t(T tval, SRC const& src, DST const& dst, u32 scale)
     {   
-        constexpr u32 scale = SCALE;
-        T ps;
+        constexpr u32 SCALE_MAX = 8;
+        
+        T ps = tval;
 
         T* rd[scale] = { 0 };
         
@@ -645,37 +776,22 @@ namespace image
     }
 
 
-    template <class SRC, class DST, class T>
+    template <class SRC, class DST>
     void scale_up_matrix(SRC const& src, DST const& dst, u32 scale)
     {
         switch (scale)
         {
         case 2:
-            scale_up_matrix_t<SRC, DST, T, 2>(src, dst);
-            break;
-
         case 3:
-            scale_up_matrix_t<SRC, DST, T, 3>(src, dst);
-            break;
-
         case 4:
-            scale_up_matrix_t<SRC, DST, T, 4>(src, dst);
-            break;
-
         case 5:
-            scale_up_matrix_t<SRC, DST, T, 5>(src, dst);
-            break;
-
         case 6:
-            scale_up_matrix_t<SRC, DST, T, 6>(src, dst);
-            break;
-
         case 7:
-            scale_up_matrix_t<SRC, DST, T, 7>(src, dst);
-            break;
-
         case 8:
-            scale_up_matrix_t<SRC, DST, T, 8>(src, dst);
+        {
+            auto tval = row_begin(src, 0)[0];
+            scale_up_matrix_t(tval, src, dst, scale);
+        }
             break;
 
         default:
@@ -737,7 +853,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        scale_up_matrix<ImageView, ImageView, Pixel>(src, dst, scale);
+        scale_up_matrix(src, dst, scale);
     }
 
 
@@ -756,7 +872,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        scale_up_matrix<GrayView, GrayView, u8>(src, dst, scale);
+        scale_up_matrix(src, dst, scale);
     }
 
 
@@ -939,7 +1055,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        transform_scale_up(src, dst, scale, [](u8 p){ return to_pixel(p); });
+        transform_scale_up_matrix(src, dst, scale, [](u8 p){ return to_pixel(p); });
     }
 }
 
