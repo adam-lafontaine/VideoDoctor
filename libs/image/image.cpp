@@ -209,21 +209,6 @@ namespace image
 
 namespace image
 {
-    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func)
-    {
-        assert(src.matrix_data_);
-        assert(src.width);
-        assert(src.height);
-        assert(dst.matrix_data_);
-        assert(dst.width);
-        assert(dst.height);
-        assert(src.width == dst.width);
-        assert(src.height == dst.height);
-
-        span::transform(to_span(src), to_span(dst), func);
-    }
-
-
     template <class SRC, class DST, class FN, typename DT>
     static void transform_scale_up_matrix_t(DT tval, SRC const& src, DST const& dst, u32 scale, FN const& func)
     {
@@ -260,8 +245,7 @@ namespace image
                 }
             }
         }
-    }
-    
+    }    
     
     
     template <class SRC, class DST, class FN>
@@ -409,6 +393,21 @@ namespace image
     }
 
 
+    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func)
+    {
+        assert(src.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.matrix_data_);
+        assert(dst.width);
+        assert(dst.height);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
+
+        span::transform(to_span(src), to_span(dst), func);
+    }
+
+
     void transform_scale_up(GrayView const& src, ImageView const& dst, fn<Pixel(u8)> const& func)
     {
         auto scale = dst.width / src.width;
@@ -445,15 +444,18 @@ namespace image
 
 namespace image
 {
-    template <class SRC, class DST, u32 SCALE>
-    void scale_down_rgba_t(SRC const& src, DST const& dst)
+    template <class SRC, class DST>
+    void scale_down_rgba_t(SRC const& src, DST const& dst, u32 scale)
     {     
-        constexpr u32 scale = SCALE;   
-        constexpr f32 i_scale = 1.0f / (scale * scale);
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+
+        const f32 i_scale = 1.0f / (scale * scale);
 
         Pixel* rd = 0;
 
-        Pixel* rs[scale] = { 0 };
+        Pixel* rs[SCALE_MAX] = { 0 };
 
         Pixel ps;
 
@@ -553,14 +555,18 @@ namespace image
     }
 
 
-    template <class SRC, class DST, u32 SCALE>
-    static void scale_down_gray_t(SRC const& src, DST const& dst)
+    template <class SRC, class DST>
+    static void scale_down_gray_t(SRC const& src, DST const& dst, u32 scale)
     {
-        constexpr u32 scale = SCALE;
-        constexpr f32 i_scale = 1.0f / (scale * scale);
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+
+        const f32 i_scale = 1.0f / (scale * scale);
 
         u8* rd = 0;
-        u8* rs[scale] = { 0 };
+
+        u8* rs[SCALE_MAX] = { 0 };
 
         f32 gray = 0.0f;
 
@@ -638,31 +644,13 @@ namespace image
         switch (scale)
         {
         case 2:
-            scale_down_rgba_t<SRC, DST, 2>(src, dst);
-            break;
-
         case 3:
-            scale_down_rgba_t<SRC, DST, 3>(src, dst);
-            break;
-
         case 4:
-            scale_down_rgba_t<SRC, DST, 4>(src, dst);
-            break;
-
         case 5:
-            scale_down_rgba_t<SRC, DST, 5>(src, dst);
-            break;
-
         case 6:
-            scale_down_rgba_t<SRC, DST, 6>(src, dst);
-            break;
-
         case 7:
-            scale_down_rgba_t<SRC, DST, 7>(src, dst);
-            break;
-
         case 8:
-            scale_down_rgba_t<SRC, DST, 8>(src, dst);
+            scale_down_rgba_t(src, dst, scale);
             break;
 
         default:
@@ -678,31 +666,13 @@ namespace image
         switch (scale)
         {
         case 2:
-            scale_down_gray_t<SRC, DST, 2>(src, dst);
-            break;
-
         case 3:
-            scale_down_gray_t<SRC, DST, 3>(src, dst);
-            break;
-
         case 4:
-            scale_down_gray_t<SRC, DST, 4>(src, dst);
-            break;
-
         case 5:
-            scale_down_gray_t<SRC, DST, 5>(src, dst);
-            break;
-
         case 6:
-            scale_down_gray_t<SRC, DST, 6>(src, dst);
-            break;
-
         case 7:
-            scale_down_gray_t<SRC, DST, 7>(src, dst);
-            break;
-
         case 8:
-            scale_down_gray_t<SRC, DST, 8>(src, dst);
+            scale_down_gray_t(src, dst, scale);
             break;
 
         default:
