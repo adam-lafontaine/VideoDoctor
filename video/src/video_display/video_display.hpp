@@ -49,7 +49,7 @@ namespace video_display
     constexpr auto VIDEO_EXTENSION = ".mp4";
 
     constexpr auto SRC_VIDEO_DIR = "/home/adam/Videos/src";
-    constexpr auto OUT_VIDEO_TEMP_PATH = "./vdtemp.mp4";
+    constexpr auto OUT_VIDEO_TEMP_PATH = "/home/adam/Repos/VideoDoctor/video/build/vdtemp.mp4";
     constexpr auto OUT_VIDEO_DIR = "/home/adam/Repos/VideoDoctor/video/build/";
 
 

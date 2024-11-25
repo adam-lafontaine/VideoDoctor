@@ -209,23 +209,47 @@ namespace image
 
 namespace image
 {
-    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func)
+    template <class SRC, class DST, class FN, typename DT>
+    static void transform_scale_up_matrix_t(DT tval, SRC const& src, DST const& dst, u32 scale, FN const& func)
     {
-        assert(src.matrix_data_);
-        assert(src.width);
-        assert(src.height);
-        assert(dst.matrix_data_);
-        assert(dst.width);
-        assert(dst.height);
-        assert(src.width == dst.width);
-        assert(src.height == dst.height);
+        constexpr u32 SCALE_MAX = 8;
 
-        span::transform(to_span(src), to_span(dst), func);
-    }
+        assert(scale <= SCALE_MAX);
+        
+        DT p = tval;
 
+        DT* rd[SCALE_MAX] = { 0 };
 
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 i = 0; i < scale; i++)
+            {
+                rd[i] = row_begin(dst, yd + i);
+            }
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {                
+                p = func(rs[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[v][u] = p;
+                    }
+
+                    rd[v] += scale;
+                }
+            }
+        }
+    }    
+    
+    
     template <class SRC, class DST, class FN>
-    static void transform_scale_up(SRC const& src, DST const& dst, u32 scale, FN const& func)
+    static void transform_scale_up_matrix_s(SRC const& src, DST const& dst, u32 scale, FN const& func)
     {
         for (u32 ys = 0; ys < src.height; ys++)
         {
@@ -251,8 +275,48 @@ namespace image
     }
 
 
+    template <class SRC1, class SRC2, class DST, class FN, typename DT>
+    static void transform_scale_up_matrix_t(DT tval, SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    {
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+        
+        DT p = tval;
+
+        DT* rd[SCALE_MAX] = { 0 };
+
+        for (u32 ys = 0; ys < src1.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs1 = row_begin(src1, ys);
+            auto rs2 = row_begin(src2, ys);
+
+            for (u32 i = 0; i < scale; i++)
+            {
+                rd[i] = row_begin(dst, yd + i);
+            }
+
+            for (u32 xs = 0; xs < src1.width; xs++)
+            {                
+                p = func(rs1[xs], rs2[xs]);
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[v][u] = p;
+                    }
+
+                    rd[v] += scale;
+                }
+            }
+        }
+    }
+
+
     template <class SRC1, class SRC2, class DST, class FN>
-    static void transform_scale_up(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    static void transform_scale_up_matrix_s(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
     {
         for (u32 ys = 0; ys < src1.height; ys++)
         {
@@ -279,6 +343,71 @@ namespace image
     }
 
 
+    template <class SRC, class DST, class FN>
+    static void transform_scale_up_matrix(SRC const& src, DST const& dst, u32 scale, FN const& func)
+    {        
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        {
+            auto tval = row_begin(dst, 0)[0];
+            transform_scale_up_matrix_t(tval, src, dst, scale, func);
+        }
+            break;
+
+        default:
+            transform_scale_up_matrix_s(src, dst, scale, func);
+            break;
+        }
+    }
+
+
+    template <class SRC1, class SRC2, class DST, class FN>
+    static void transform_scale_up_matrix(SRC1 const& src1, SRC2 const& src2, DST const& dst, u32 scale, FN const& func)
+    {
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        {
+            auto tval = row_begin(dst, 0)[0];
+            transform_scale_up_matrix_t(tval, src1, src2, dst, scale, func);
+        }
+            break;
+
+        default:
+            transform_scale_up_matrix_s(src1, src2, dst, scale, func);
+            break;
+        }
+    }
+
+
+    void transform(ImageView const& src, ImageView const& dst, fn<Pixel(Pixel)> const& func)
+    {
+        assert(src.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.matrix_data_);
+        assert(dst.width);
+        assert(dst.height);
+        assert(src.width == dst.width);
+        assert(src.height == dst.height);
+
+        span::transform(to_span(src), to_span(dst), func);
+    }
+
+
     void transform_scale_up(GrayView const& src, ImageView const& dst, fn<Pixel(u8)> const& func)
     {
         auto scale = dst.width / src.width;
@@ -289,7 +418,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        transform_scale_up(src, dst, scale, func);
+        transform_scale_up_matrix(src, dst, scale, func);
     }
 
 
@@ -306,7 +435,7 @@ namespace image
         assert(dst.height == src1.height * scale);
         assert(scale > 1);
 
-        transform_scale_up(src1, src2, dst, scale, func);
+        transform_scale_up_matrix(src1, src2, dst, scale, func);
     }
 }
 
@@ -315,21 +444,83 @@ namespace image
 
 namespace image
 {
-    /*template <class SRC, class DST>
-    static void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
-    {
-        f32 const i_scale = 1.0f / (scale * scale);
+    template <class SRC, class DST>
+    void scale_down_rgba_t(SRC const& src, DST const& dst, u32 scale)
+    {     
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+
+        const f32 i_scale = 1.0f / (scale * scale);
+
+        Pixel* rd = 0;
+
+        Pixel* rs[SCALE_MAX] = { 0 };
+
+        Pixel ps;
 
         f32 red = 0.0f;
         f32 green = 0.0f;
         f32 blue = 0.0f;
-        f32 alpha = 0.0f;
 
         for (u32 yd = 0; yd < dst.height; yd++)
         {
             auto ys = scale * yd;
 
-            auto rd = row_begin(dst, yd);
+            rd = row_begin(dst, yd);
+            for (u32 i = 0; i < scale; i++)
+            {
+                rs[i] = row_begin(src, ys + i);
+            }
+
+            for (u32 xd = 0; xd < dst.width; xd++)
+            {
+                red   = 0.0f;
+                green = 0.0f;
+                blue  = 0.0f;
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        ps = rs[v][u];
+                        red   += ps.red;
+                        green += ps.green;
+                        blue  += ps.blue;
+                    }
+
+                    rs[v] += scale;
+                }
+
+                red   *= i_scale;
+                green *= i_scale;
+                blue  *= i_scale;
+
+                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue);
+            }
+        }
+    }
+    
+    
+    template <class SRC, class DST>
+    static void scale_down_rgba_s(SRC const& src, DST const& dst, u32 scale)
+    {
+        f32 const i_scale = 1.0f / (scale * scale);
+
+        Pixel* rd = 0;
+        Pixel* rs = 0;
+
+        Pixel ps;
+
+        f32 red = 0.0f;
+        f32 green = 0.0f;
+        f32 blue = 0.0f;
+
+        for (u32 yd = 0; yd < dst.height; yd++)
+        {
+            auto ys = scale * yd;
+
+            rd = row_begin(dst, yd);
 
             for (u32 xd = 0; xd < dst.width; xd++)
             {
@@ -338,30 +529,79 @@ namespace image
                 red   = 0.0f;
                 green = 0.0f;
                 blue  = 0.0f;
-                alpha = 0.0f;
 
                 for (u32 v = 0; v < scale; v++)
                 {
-                    auto rs = row_begin(src, ys + v) + xs;
+                    rs = row_begin(src, ys + v) + xs;
                     for (u32 u = 0; u < scale; u++)
                     {
                         auto s = rs[u];
-                        red   += i_scale * s.red;
-                        green += i_scale * s.green;
-                        blue  += i_scale * s.blue;
-                        alpha += i_scale * s.alpha;
+                        red   += s.red;
+                        green += s.green;
+                        blue  += s.blue;
                     }
                 }
 
-                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue, (u8)alpha);
+                red   *= i_scale;
+                green *= i_scale;
+                blue  *= i_scale;
+
+                rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue);
             }
         }
     }
 
 
     template <class SRC, class DST>
-    static void scale_down_gray(SRC const& src, DST const& dst, u32 scale)
+    static void scale_down_gray_t(SRC const& src, DST const& dst, u32 scale)
     {
+        constexpr u32 SCALE_MAX = 8;
+
+        assert(scale <= SCALE_MAX);
+
+        const f32 i_scale = 1.0f / (scale * scale);
+
+        u8* rd = 0;
+
+        u8* rs[SCALE_MAX] = { 0 };
+
+        f32 gray = 0.0f;
+
+        for (u32 yd = 0; yd < dst.height; yd++)
+        {
+            auto ys = scale * yd;
+
+            rd = row_begin(dst, yd);
+            for (u32 i = 0; i < scale; i++)
+            {
+                rs[i] = row_begin(src, ys + i);
+            }
+
+            for (u32 xd = 0; xd < dst.width; xd++)
+            {
+                gray = 0.0f;
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        gray += rs[v][u];
+                    }
+
+                    rs[v] += scale;
+                }
+
+                gray *= i_scale;
+
+                rd[xd] = (u8)gray;
+            }
+        }
+    }
+
+
+    template <class SRC, class DST>
+    static void scale_down_gray_s(SRC const& src, DST const& dst, u32 scale)
+    {        
         f32 const i_scale = 1.0f / (scale * scale);
 
         f32 gray = 0.0f;
@@ -383,9 +623,11 @@ namespace image
                     auto rs = row_begin(src, ys + v) + xs;
                     for (u32 u = 0; u < scale; u++)
                     {
-                        gray += i_scale * rs[u];
+                        gray += rs[u];
                     }
                 }
+
+                gray *= i_scale;
 
                 rd[xd] = (u8)gray;
             }
@@ -393,26 +635,149 @@ namespace image
     }
 
 
+    template <class SRC, class DST>
+    static void scale_down_rgba(SRC const& src, DST const& dst, u32 scale)
+    {       
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            scale_down_rgba_t(src, dst, scale);
+            break;
+
+        default:
+            scale_down_rgba_s(src, dst, scale);
+            break;
+        }        
+    }
+
+
+    template <class SRC, class DST>
+    static void scale_down_gray(SRC const& src, DST const& dst, u32 scale)
+    {       
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            scale_down_gray_t(src, dst, scale);
+            break;
+
+        default:
+            scale_down_gray_s(src, dst, scale);
+            break;
+        }
+    }
+    
+
+    template <class SRC, class DST, class T>
+    void scale_up_matrix_t(T tval, SRC const& src, DST const& dst, u32 scale)
+    {   
+        constexpr u32 SCALE_MAX = 8;
+        
+        T ps = tval;
+
+        T* rd[scale] = { 0 };
+        
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 i = 0; i < scale; i++)
+            {
+                rd[i] = row_begin(dst, yd + i);
+            }
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {
+                ps = rs[xs];
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[v][u] = ps;
+                    }
+
+                    rd[v] += scale;
+                }
+            }
+        }
+    }
+
+
+    template <class SRC, class DST>
+    void scale_up_matrix_s(SRC const& src, DST const& dst, u32 scale)
+    {        
+        for (u32 ys = 0; ys < src.height; ys++)
+        {
+            auto yd = scale * ys;
+            auto rs = row_begin(src, ys);
+
+            for (u32 xs = 0; xs < src.width; xs++)
+            {
+                auto xd = scale * xs;
+
+                auto p = rs[xs];
+
+                for (u32 v = 0; v < scale; v++)
+                {
+                    auto rd = row_begin(dst, yd + v) + xd;
+                    for (u32 u = 0; u < scale; u++)
+                    {
+                        rd[u] = p;
+                    }
+                }
+            }
+        }
+    }
+
+
+    template <class SRC, class DST>
+    void scale_up_matrix(SRC const& src, DST const& dst, u32 scale)
+    {
+        switch (scale)
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        {
+            auto tval = row_begin(src, 0)[0];
+            scale_up_matrix_t(tval, src, dst, scale);
+        }
+            break;
+
+        default:
+            scale_up_matrix_s(src, dst, scale);
+            break;
+        }
+    }
+    
+    
     void scale_down(ImageView const& src, ImageView const& dst)
     {
         auto scale = src.width / dst.width;
 
         assert(src.matrix_data_);
         assert(dst.matrix_data_);
-        assert(src.width == scale * dst.width);
-        assert(src.height == scale * dst.height);
-        assert(scale > 1);
-        
-        scale_down_rgba(src, dst, scale);
-    }
-
-
-    void scale_down(ImageView const& src, SubView const& dst)
-    {
-        auto scale = src.width / dst.width;
-
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
+        assert(src.width);
+        assert(src.height);
+        assert(dst.width);
+        assert(dst.height);
         assert(src.width == scale * dst.width);
         assert(src.height == scale * dst.height);
         assert(scale > 1);
@@ -440,52 +805,6 @@ namespace image
     }
 
 
-    void scale_down(GraySubView const& src, GrayView const& dst)
-    {
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(src.width);
-        assert(src.height);
-        assert(dst.width);
-        assert(dst.height);
-
-        auto scale = src.width / dst.width;
-        
-        assert(src.width == scale * dst.width);
-        assert(src.height == scale * dst.height);
-        assert(scale > 1);
-        
-        scale_down_gray(src, dst, scale);
-    }
-
-
-    template <class SRC, class DST>
-    void matrix_scale_up(SRC const& src, DST const& dst, u32 scale)
-    {        
-        for (u32 ys = 0; ys < src.height; ys++)
-        {
-            auto yd = scale * ys;
-            auto rs = row_begin(src, ys);
-
-            for (u32 xs = 0; xs < src.width; xs++)
-            {
-                auto xd = scale * xs;
-
-                auto p = rs[xs];
-
-                for (u32 v = 0; v < scale; v++)
-                {
-                    auto rd = row_begin(dst, yd + v) + xd;
-                    for (u32 u = 0; u < scale; u++)
-                    {
-                        rd[u] = p;
-                    }
-                }
-            }
-        }
-    }
-
-
     void scale_up(ImageView const& src, ImageView const& dst)
     {
         assert(src.matrix_data_);
@@ -501,7 +820,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        matrix_scale_up(src, dst, scale);
+        scale_up_matrix(src, dst, scale);
     }
 
 
@@ -520,27 +839,8 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        matrix_scale_up(src, dst, scale);
+        scale_up_matrix(src, dst, scale);
     }
-
-
-    void scale_up(GraySubView const& src, GraySubView const& dst)
-    {
-        assert(src.matrix_data_);
-        assert(dst.matrix_data_);
-        assert(src.width);
-        assert(src.height);
-        assert(dst.width);
-        assert(dst.height);
-
-        auto scale = dst.width / src.width;
-        
-        assert(dst.width == src.width * scale);
-        assert(dst.height == src.height * scale);
-        assert(scale > 1);
-
-        matrix_scale_up(src, dst, scale);
-    }*/
 
 
     void resize(ImageView const& src, ImageView const& dst)
@@ -663,6 +963,7 @@ namespace image
 
     void map_scale_down(GrayView const& src, ImageView const& dst)
     {
+        constexpr u32 SCALE_MAX = 8;
         auto scale = src.width / dst.width;
 
         assert(src.matrix_data_);
@@ -670,8 +971,12 @@ namespace image
         assert(src.width == scale * dst.width);
         assert(src.height == scale * dst.height);
         assert(scale > 1);
+        assert(scale <= SCALE_MAX);
         
         f32 const i_scale = 1.0f / (scale * scale);
+
+        Pixel* rd = 0;
+        u8* rs[SCALE_MAX] = { 0 };
 
         f32 gray = 0.0f;
 
@@ -679,22 +984,27 @@ namespace image
         {
             auto ys = scale * yd;
 
-            auto rd = row_begin(dst, yd);
+            rd = row_begin(dst, yd);
+            for (u32 i = 0; i < scale; i++)
+            {
+                rs[i] = row_begin(src, ys + i);
+            }
 
             for (u32 xd = 0; xd < dst.width; xd++)
             {
-                auto xs = scale * xd;
-
                 gray = 0.0f;
 
                 for (u32 v = 0; v < scale; v++)
                 {
-                    auto rs = row_begin(src, ys + v) + xs;
                     for (u32 u = 0; u < scale; u++)
                     {
-                        gray += i_scale * rs[u];
+                        gray += rs[v][u];
                     }
+
+                    rs[v] += scale;
                 }
+
+                gray *= i_scale;
 
                 rd[xd] = to_pixel((u8)gray);
             }
@@ -712,7 +1022,7 @@ namespace image
         assert(dst.height == src.height * scale);
         assert(scale > 1);
 
-        transform_scale_up(src, dst, scale, [](u8 p){ return to_pixel(p); });
+        transform_scale_up_matrix(src, dst, scale, [](u8 p){ return to_pixel(p); });
     }
 }
 

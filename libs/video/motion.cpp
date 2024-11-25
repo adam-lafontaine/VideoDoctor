@@ -4,6 +4,25 @@
 
 namespace motion
 {
+    template <class SRC, class DST>
+    static void resize_up(SRC const& src, DST const& dst)
+    {
+        img::scale_up(src, dst);
+        //img::resize(src, dst);
+    }
+
+
+    template <class SRC, class DST>
+    static void resize_down(SRC const& src, DST const& dst)
+    {
+        img::scale_down(src, dst);
+        //img::resize(src, dst);
+    }
+}
+
+
+namespace motion
+{
     namespace num = numeric;
 
 
@@ -148,8 +167,7 @@ namespace motion
         auto v = img::to_span(mot.values);
         auto o = img::to_span(mot.out);
 
-        //img::scale_down(src, mot.values);
-        img::resize(src, mot.values);
+        resize_down(src, mot.values);
         span::transform(v, t, o, abs_avg_delta);
 
         mot.location = img::centroid(mot.out, mot.location, loc_s);
@@ -181,8 +199,7 @@ namespace motion
         auto v = img::to_span(mot.values);
         auto o = img::to_span(mot.out);
 
-        //img::scale_down(src, mot.values);
-        img::resize(src, mot.values);
+        resize_down(src, mot.values);
         span::transform(v, t, o, abs_avg_delta);
 
         auto scale = src.width / mot.values.width;
@@ -208,16 +225,14 @@ namespace motion
     void update(GrayMotion& mot, img::GrayView const& src, img::GrayView const& dst)
     {
         update(mot, src);
-        //img::scale_up(mot.out, dst);
-        img::resize(mot.out, dst);
+        resize_up(mot.out, dst);
     }
 
 
     void update(GrayMotion& mot, img::GrayView const& src, Rect2Du32 src_scan_rect, img::GrayView const& dst)
     {
         update(mot, src, src_scan_rect);
-        //img::scale_up(mot.out, dst);
-        img::resize(mot.out, dst);
+        resize_up(mot.out, dst);
     }
 }
 
@@ -265,8 +280,7 @@ namespace motion
 
         auto proc_scan_rect = rect_scale_down(src_scan_rect, proc_scale);
 
-        //img::scale_down(src_gray, gray);
-        img::resize(src_gray, gray);
+        resize_down(src_gray, gray);
         img::gradients(gray, edges);
         update(gm.edge_motion, edges, proc_scan_rect, motion);
 
