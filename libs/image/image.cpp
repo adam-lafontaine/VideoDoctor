@@ -488,6 +488,8 @@ namespace image
                         green += ps.green;
                         blue  += ps.blue;
                     }
+
+                    rs[v] += scale;
                 }
 
                 red   *= i_scale;
@@ -495,11 +497,6 @@ namespace image
                 blue  *= i_scale;
 
                 rd[xd] = to_pixel((u8)red, (u8)green, (u8)blue);
-
-                for (u32 i = 0; i < scale; i++)
-                {
-                    rs[i] += scale;
-                }
             }
         }
     }
