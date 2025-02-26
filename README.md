@@ -7,6 +7,6 @@ A video processing API
 
 Processes video with basic motion capture
 
-### View
+### Viewer
 
 Simply displays a video using the deprecated API.
