@@ -85,7 +85,6 @@ span := $(libs)/span
 span_h := $(span)/span.hpp
 span_h += $(memory_buffer_h)
 span_h += $(stack_buffer_h)
-#span_h += $(qsprintf_h)
 
 span_c := $(span)/span.cpp
 span_c += $(span_h)
@@ -103,6 +102,16 @@ image_h += $(span_h)
 image_c := $(image)/image.cpp
 image_c += $(image_h)
 image_c += $(numeric_h)
+
+#*************
+
+
+#*** stb_libs ***
+
+stb_libs := $(libs)/stb_libs
+
+stb_libs_c := $(stb_libs)/stb_libs.cpp
+stb_libs_c += $(stb_libs)/stb_image_options.hpp
 
 #*************
 
@@ -137,7 +146,7 @@ main_o := $(build)/main.o
 obj    := $(main_o)
 
 main_dep := $(imgui_include_h)
-main_dep+= $(video_display_h)
+main_dep += $(video_display_h)
 
 # main_o.cpp
 main_dep += $(pltfm)/main_o.cpp
@@ -145,6 +154,7 @@ main_dep += $(alloc_type_c)
 main_dep += $(image_c)
 main_dep += $(span_c)
 main_dep += $(video_c)
+main_dep += $(stb_libs_c)
 
 #****************
 

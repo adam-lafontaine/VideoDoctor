@@ -3,8 +3,7 @@
 #include "image.hpp"
 #include "../util/numeric.hpp"
 
-#define IMAGE_RESIZE
-#include "../stb_image/stb_image_options.hpp"
+#include "../stb_libs/stb_image_options.hpp"
 
 namespace num = numeric;
 
