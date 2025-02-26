@@ -13,7 +13,9 @@ using fn = std::function<F>;
 
 #ifdef SPAN_STRING
 
-//#include "../qsprintf/qsprintf.hpp"
+#ifdef STB_SPRINTF_IMPLEMENTATION
+#undef STB_SPRINTF_IMPLEMENTATION
+#endif
 #include "../stb_libs/stb_sprintf.h"
 
 
@@ -279,7 +281,7 @@ namespace span
     template <typename... VA_ARGS>
     inline void sprintf(StringView& view, cstr fmt, VA_ARGS... va_args)
     {
-        view.length = (u32)stb_snprintf(view.begin, (int)view.capacity, fmt, va_args...);
+        view.length = (u32)stbsp_snprintf(view.begin, (int)view.capacity, fmt, va_args...);
     }
 
 }

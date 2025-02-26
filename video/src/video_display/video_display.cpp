@@ -2,6 +2,11 @@
 #include "../../../libs/util/stopwatch.hpp"
 #include "../../../libs/util/numeric.hpp"
 
+#ifdef STB_SPRINTF_IMPLEMENTATION
+#undef STB_SPRINTF_IMPLEMENTATION
+#endif
+#include "../../../libs/stb_libs/stb_sprintf.h"
+
 #include <thread>
 
 
@@ -802,7 +807,7 @@ namespace internal
         char labels[N][6] = { 0 };
         for (u32 i = 0; i < N; i++)
         {
-            qsnprintf(labels[i], 6, "%u", OUT_SIZES[i]);
+            stbsp_snprintf(labels[i], 6, "%u", OUT_SIZES[i]);
         }
 
         static int width_id = 0;
