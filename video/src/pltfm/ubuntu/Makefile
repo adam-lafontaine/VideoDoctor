@@ -80,29 +80,16 @@ memory_buffer_h += $(alloc_type_h)
 #***********
 
 
-#*** stb_image ***
+#*** stb_libs ***
 
-stb_image  := $(libs)/stb_image
+stb_libs := $(libs)/stb_libs
 
-#stb_image_h        := $(stb_image)/stb_image.h
-stb_image_resize_h := $(stb_image)/stb_image_resize2.h
+qsprintf_h := $(stb_libs)/qsprintf.hpp
 
-stb_image_options_h := $(stb_image)/stb_image_options.hpp
-#stb_image_options_h += $(stb_image_h)
-stb_image_options_h += $(stb_image_resize_h)
+stb_libs_c := $(stb_libs)/stb_libs.cpp
+stb_libs_c += $(stb_libs)/stb_image_options.hpp
 
-#**************
-
-
-#*** qsprintf ***
-
-qsprintf   := $(libs)/qsprintf
-
-qsprintf_h := $(qsprintf)/qsprintf.hpp
-
-qsprintf_c := $(qsprintf)/qsprintf.cpp
-
-#************
+#*************
 
 
 #*** span ***
@@ -130,7 +117,6 @@ image_h += $(span_h)
 image_c := $(image)/image.cpp
 image_c += $(image_h)
 image_c += $(numeric_h)
-image_c += $(stb_image_options_h)
 
 #*************
 
@@ -165,6 +151,7 @@ video_display_h += $(video_h)
 video_display_c := $(video_display)/video_display.cpp
 video_display_c += $(stopwatch_h)
 video_display_c += $(numeric_h)
+video_display_c += $(qsprintf_h)
 
 #***********
 
@@ -183,7 +170,7 @@ main_dep += $(pltfm)/main_o.cpp
 main_dep += $(alloc_type_c)
 main_dep += $(image_c)
 main_dep += $(span_c)
-main_dep += $(qsprintf_c)
+main_dep += $(stb_libs_c)
 main_dep += $(video_c)
 main_dep += $(motion_c)
 main_dep += $(video_display_c)

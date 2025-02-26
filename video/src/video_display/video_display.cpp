@@ -1,6 +1,7 @@
 #include "video_display.hpp"
 #include "../../../libs/util/stopwatch.hpp"
 #include "../../../libs/util/numeric.hpp"
+#include "../../../libs/stb_libs/qsprintf.hpp"
 
 #include <thread>
 
@@ -802,7 +803,7 @@ namespace internal
         char labels[N][6] = { 0 };
         for (u32 i = 0; i < N; i++)
         {
-            qsnprintf(labels[i], 6, "%u", OUT_SIZES[i]);
+            stb::qsnprintf(labels[i], 6, "%u", OUT_SIZES[i]);
         }
 
         static int width_id = 0;

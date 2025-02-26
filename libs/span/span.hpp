@@ -13,7 +13,7 @@ using fn = std::function<F>;
 
 #ifdef SPAN_STRING
 
-#include "../qsprintf/qsprintf.hpp"
+#include "../stb_libs/qsprintf.hpp"
 
 
 class StringView
@@ -72,7 +72,7 @@ namespace span
     }
 
 
-    template <typename T, size_t N>
+    template <typename T, u32 N>
     inline SpanView<T> push_span(StackBuffer<T, N>& buffer, u32 length)
     {
         SpanView<T> view{};
@@ -278,7 +278,7 @@ namespace span
     template <typename... VA_ARGS>
     inline void sprintf(StringView& view, cstr fmt, VA_ARGS... va_args)
     {
-        view.length = (u32)qsnprintf(view.begin, (int)view.capacity, fmt, va_args...);
+        view.length = (u32)stb::qsnprintf(view.begin, (int)view.capacity, fmt, va_args...);
     }
 
 }
