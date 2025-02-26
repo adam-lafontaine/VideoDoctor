@@ -1,7 +1,7 @@
 #include "imgui_options.hpp"
 
 #define IMGUI_IMPLEMENTATION
-#define IMGUI_USE_STB_SPRINTF
+
 
 #include "../../../../libs/imgui/misc/single_file/imgui_single_file.h"
 
