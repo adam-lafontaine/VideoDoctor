@@ -92,43 +92,12 @@ namespace video
     };
 
 
-    // Deprecated
+    // Deprecated???
     bool create_frame(FrameRGBA& frame, u32 width, u32 height);
 
-    // Deprecated
-    void resize_frame(FrameRGBA const& src, FrameRGBA const& dst);
-
-    // Deprecated
+    // Deprecated???
     void destroy_frame(FrameRGBA& frame);
 
-
-
-    using FrameList = std::initializer_list<FrameRGBA>;
-
-
-    // Deprecated
-    void crop_video(VideoReader const& src, VideoWriter& dst, FrameList const& src_out, FrameList const& dst_out);
-
-    // Deprecated
-    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out);
-
-    // Deprecated
-    bool next_frame(VideoReader const& video, FrameList const& frames_out);
-
-    
-    // Deprecated
-    void play_video(VideoReader const& video, FrameList const& frames_out);
-
-    // Deprecated
-    void process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
-
-    // Deprecated
-    bool process_video(VideoReader const& src, FrameRGBA const& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
-
-    // Deprecated
-    void process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out);
-
-    // Deprecated
-    bool process_video(VideoReader const& src, VideoWriter& dst, fn_frame_to_rgba const& cb, FrameList const& src_out, FrameList const& dst_out, fn_bool const& proc_cond);
-    
+    // Deprecated???
+    bool next_frame(VideoReader const& video, FrameRGBA const& frame_out);  
 }
