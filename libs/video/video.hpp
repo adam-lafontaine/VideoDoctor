@@ -98,10 +98,6 @@ namespace video
     // Deprecated???
     void destroy_frame(FrameRGBA& frame);
 
-
-
-    using FrameList = std::initializer_list<FrameRGBA>;
-
     // Deprecated???
     bool next_frame(VideoReader const& video, FrameRGBA const& frame_out);  
 }
